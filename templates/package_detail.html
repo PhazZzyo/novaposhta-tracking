@@ -1,0 +1,74 @@
+{% if package %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <code class="ttn fs-5">{{ package.tracking_number }}</code>
+    {% if package.direction == 'incoming' %}
+    <span class="badge bg-success"><i class="bi bi-arrow-down-circle me-1"></i>{{ t('incoming') }}</span>
+    {% else %}
+    <span class="badge bg-primary"><i class="bi bi-arrow-up-circle me-1"></i>{{ t('outgoing') }}</span>
+    {% endif %}
+</div>
+<div class="row mb-3">
+    <div class="col-sm-6">
+        <p class="text-muted small mb-1">{{ t('sender') }}</p>
+        <p class="mb-0 fw-semibold">{{ package.sender_name or '-' }}</p>
+        <p class="text-muted mb-0">{{ package.sender_city or '' }}</p>
+        <p class="text-muted mb-0">{{ package.sender_phone or '' }}</p>
+    </div>
+    <div class="col-sm-6">
+        <p class="text-muted small mb-1">{{ t('recipient') }}</p>
+        <p class="mb-0 fw-semibold">
+            {{ package.recipient_name or '-' }}
+            {% if package.recipient_contact and package.recipient_contact != package.recipient_name %}
+            <span class="text-muted fw-normal">({{ package.recipient_contact }})</span>
+            {% endif %}
+        </p>
+        <p class="text-muted mb-0">{{ package.recipient_city or '' }}</p>
+        <p class="text-muted mb-0">{{ package.recipient_phone or '' }}</p>
+        {% if package.recipient_warehouse %}
+        <p class="text-muted mb-0"><small>{{ package.recipient_warehouse }}</small></p>
+        {% endif %}
+    </div>
+</div>
+<div class="row mb-3">
+    <div class="col-4">
+        <p class="text-muted small mb-1">{{ t('package_cost') }}</p>
+        <p class="mb-0 fw-semibold">{{ '%.2f'|format(package.package_cost|float) }} UAH</p>
+    </div>
+    <div class="col-4">
+        <p class="text-muted small mb-1">{{ t('shipping_cost') }}</p>
+        <p class="mb-0 fw-semibold">{{ '%.2f'|format(package.shipment_cost|float) }} UAH</p>
+    </div>
+    <div class="col-4">
+        <p class="text-muted small mb-1">{{ t('weight') }}</p>
+        <p class="mb-0 fw-semibold">{{ '%.3f'|format(package.weight|float) }} kg</p>
+    </div>
+</div>
+<div class="row mb-3">
+    <div class="col-sm-6">
+        <p class="text-muted small mb-1">{{ t('created') }}</p>
+        <p class="mb-0">{{ package.date_created.strftime('%d.%m.%Y %H:%M') if package.date_created else '-' }}</p>
+    </div>
+    <div class="col-sm-6">
+        <p class="text-muted small mb-1">{{ t('planned_delivery') }}</p>
+        <p class="mb-0">{{ package.planned_delivery_date.strftime('%d.%m.%Y') if package.planned_delivery_date else '-' }}</p>
+    </div>
+</div>
+<div class="mb-3">
+    <p class="text-muted small mb-1">{{ t('status') }}</p>
+    {% if package.is_delivered %}
+    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>{{ package.status }}</span>
+    {% else %}
+    <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>{{ package.status }}</span>
+    {% endif %}
+</div>
+{% if package.description %}
+<div class="mb-3">
+    <p class="text-muted small mb-1">{{ t('description') }}</p>
+    <p class="mb-0">{{ package.description }}</p>
+</div>
+{% endif %}
+<a href="{{ url_for('package_invoice', tracking_number=package.tracking_number) }}"
+   class="btn btn-outline-primary" target="_blank">
+    <i class="bi bi-file-pdf me-2"></i>{{ t('view_invoice') }}
+</a>
+{% endif %}

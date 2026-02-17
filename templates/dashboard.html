@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ t('dashboard') }} - Nova Poshta{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-speedometer2 me-2"></i>{{ t('dashboard') }}</h2>
+    <small class="text-muted"><i class="bi bi-clock me-1"></i>{{ now.strftime('%d.%m.%Y %H:%M') }}</small>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="text-muted mb-1">{{ t('total_packages') }}</p>
+                    <h2 class="mb-0 fw-bold">{{ total_packages }}</h2>
+                </div>
+                <div class="stat-icon stat-icon-primary"><i class="bi bi-box-seam"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="text-muted mb-1">{{ t('active') }}</p>
+                    <h2 class="mb-0 fw-bold text-warning">{{ active_packages }}</h2>
+                </div>
+                <div class="stat-icon stat-icon-warning"><i class="bi bi-truck"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="text-muted mb-1">{{ t('ready_pickup') }}</p>
+                    <h2 class="mb-0 fw-bold text-success">{{ ready_pickup }}</h2>
+                </div>
+                <div class="stat-icon stat-icon-success"><i class="bi bi-check-circle"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-key me-2"></i>{{ t('api_keys') }}</span>
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_add_api_key') }}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus-lg"></i> {{ t('add_api_key') }}
+        </a>
+        {% endif %}
+    </div>
+    {% if api_keys %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>{{ t('label') }}</th><th>{{ t('last_sync') }}</th>
+                <th>{{ t('status') }}</th><th class="text-end">{{ t('actions') }}</th>
+            </tr></thead>
+            <tbody>
+            {% for key in api_keys %}
+            <tr>
+                <td><i class="bi bi-key text-primary me-2"></i><strong>{{ key.label }}</strong></td>
+                <td>
+                    {% if key.last_sync %}
+                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>{{ key.last_sync.strftime('%d.%m.%Y %H:%M') }}</span>
+                    {% else %}<span class="text-muted">{{ t('never') }}</span>{% endif %}
+                </td>
+                <td>
+                    {% if key.auto_sync %}<span class="badge bg-success"><i class="bi bi-arrow-repeat me-1"></i>Auto</span>
+                    {% else %}<span class="badge bg-secondary">Manual</span>{% endif %}
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" id="sync-btn-{{ key.id }}" onclick="syncAPI({{ key.id }})">
+                        <i class="bi bi-arrow-clockwise"></i> {{ t('sync') }}
+                    </button>
+                    <a href="{{ url_for('packages', api=key.id) }}" class="btn btn-sm btn-outline-secondary ms-1">
+                        <i class="bi bi-eye"></i> {{ t('view') }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5">
+        <i class="bi bi-key text-muted" style="font-size:3rem"></i>
+        <p class="text-muted mt-3">{{ t('no_api_keys') }}</p>
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_add_api_key') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> {{ t('add_api_key') }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+window.translations = {
+    syncing: "{{ t('syncing') }}",
+    syncSuccess: "{{ t('sync_success') }}",
+    syncError: "{{ t('error') }}: "
+};
+</script>
+{% endblock %}

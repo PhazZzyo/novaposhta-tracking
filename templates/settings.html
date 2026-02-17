@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ t('settings') }} - Nova Poshta{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-sliders me-2"></i>{{ t('settings') }}</h2>
+<div class="row"><div class="col-md-7 col-lg-5">
+    <div class="card"><div class="card-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">{{ t('language') }}</label>
+                <select class="form-select" name="language">
+                    <option value="uk" {% if current_user.language == 'uk' %}selected{% endif %}>🇺🇦 Українська</option>
+                    <option value="en" {% if current_user.language == 'en' %}selected{% endif %}>🇬🇧 English</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">{{ t('theme') }}</label>
+                <select class="form-select" name="theme">
+                    <option value="light" {% if current_user.theme == 'light' %}selected{% endif %}>☀️ {{ t('light') }}</option>
+                    <option value="dark" {% if current_user.theme == 'dark' %}selected{% endif %}>🌙 {{ t('dark') }}</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">{{ t('view_mode') }}</label>
+                <select class="form-select" name="view_mode">
+                    <option value="table" {% if current_user.view_mode == 'table' %}selected{% endif %}>⊞ {{ t('table') }}</option>
+                    <option value="card" {% if current_user.view_mode == 'card' %}selected{% endif %}>▦ {{ t('cards') }}</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">{{ t('items_per_page') }}</label>
+                <select class="form-select" name="items_per_page">
+                    <option value="20" {% if current_user.items_per_page == 20 %}selected{% endif %}>20</option>
+                    <option value="50" {% if current_user.items_per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if current_user.items_per_page == 100 %}selected{% endif %}>100</option>
+                </select>
+            </div>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="notify" name="notify_ready_pickup"
+                       {% if current_user.notify_ready_pickup %}checked{% endif %}>
+                <label class="form-check-label" for="notify">{{ t('notify_pickup') }}</label>
+            </div>
+            {% if current_user.role != 'admin' and available_apis %}
+            <div class="mb-3">
+                <label class="form-label">{{ t('track_apis') }}</label>
+                <div class="border rounded p-3" style="max-height:180px;overflow-y:auto">
+                    {% for api in available_apis %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="tracked_apis"
+                               value="{{ api.id }}" id="api{{ api.id }}"
+                               {% if api.id in tracked_api_ids %}checked{% endif %}>
+                        <label class="form-check-label" for="api{{ api.id }}">{{ api.label }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="bi bi-check-lg me-2"></i>{{ t('save') }}
+            </button>
+        </form>
+    </div></div>
+</div></div>
+{% endblock %}

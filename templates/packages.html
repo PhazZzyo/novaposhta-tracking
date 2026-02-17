@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}{{ t('packages') }} - Nova Poshta{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box me-2"></i>{{ t('packages') }}</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="bi bi-funnel"></i> {{ t('filters') }}
+        </button>
+        <div class="btn-group" role="group">
+            <a href="?view=table{% for k,v in request.args.items() if k != 'view' %}&{{ k }}={{ v }}{% endfor %}"
+               class="btn btn-outline-secondary {% if view_mode == 'table' %}active{% endif %}" title="{{ t('table') }}">
+                <i class="bi bi-table"></i>
+            </a>
+            <a href="?view=card{% for k,v in request.args.items() if k != 'view' %}&{{ k }}={{ v }}{% endfor %}"
+               class="btn btn-outline-secondary {% if view_mode == 'card' %}active{% endif %}" title="{{ t('cards') }}">
+                <i class="bi bi-grid-3x3-gap"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+{% set has_filters = request.args.get('direction') or request.args.getlist('api') or request.args.get('status') or request.args.get('days') %}
+{% if has_filters %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+    <span class="text-muted small">{{ t('filters') }}:</span>
+    {% if request.args.get('direction') and request.args.get('direction') != 'all' %}
+    <span class="badge bg-secondary">{{ t(request.args.get('direction')) }}</span>{% endif %}
+    {% if request.args.get('status') %}<span class="badge bg-secondary">{{ t(request.args.get('status')) }}</span>{% endif %}
+    {% if request.args.get('days') %}<span class="badge bg-secondary"><i class="bi bi-calendar3"></i> {{ request.args.get('days') }}d</span>{% endif %}
+    <a href="{{ url_for('packages') }}" class="btn btn-sm btn-link text-decoration-none p-0 ms-1">
+        <i class="bi bi-x-circle"></i> {{ t('reset') }}
+    </a>
+</div>
+{% endif %}
+
+<div class="card">
+    {% if packages %}
+    {% if view_mode == 'table' %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>ТТН</th><th></th>
+                <th>{{ t('sender') }}</th><th>{{ t('recipient') }}</th>
+                <th>{{ t('status') }}</th><th>{{ t('created') }}</th>
+                <th class="text-end">{{ t('actions') }}</th>
+            </tr></thead>
+            <tbody>
+            {% for pkg in packages %}
+            <tr>
+                <td>
+                    <code class="ttn">{{ pkg.tracking_number }}</code>
+                    <br><small class="text-muted">{{ pkg.api_key.label if pkg.api_key else '' }}</small>
+                </td>
+                <td>
+                    {% if pkg.direction == 'incoming' %}
+                    <span class="badge bg-success" title="{{ t('incoming') }}"><i class="bi bi-arrow-down-circle"></i></span>
+                    {% else %}
+                    <span class="badge bg-primary" title="{{ t('outgoing') }}"><i class="bi bi-arrow-up-circle"></i></span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="fw-semibold">{{ pkg.sender_name or '-' }}</div>
+                    <small class="text-muted"><i class="bi bi-geo-alt"></i> {{ pkg.sender_city or '-' }}</small>
+                </td>
+                <td>
+                    <div class="fw-semibold">
+                        {{ pkg.recipient_name or '-' }}
+                        {% if pkg.recipient_contact and pkg.recipient_contact != pkg.recipient_name %}
+                        <span class="text-muted fw-normal">({{ pkg.recipient_contact }})</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted"><i class="bi bi-geo-alt"></i> {{ pkg.recipient_city or '-' }}</small>
+                    {% if pkg.recipient_warehouse %}
+                    <br><small class="text-muted">{{ pkg.recipient_warehouse }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if pkg.is_delivered %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> {{ pkg.status }}</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> {{ pkg.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if pkg.date_created %}
+                    {{ pkg.date_created.strftime('%d.%m.%Y') }}<br>
+                    <small class="text-muted">{{ pkg.date_created.strftime('%H:%M') }}</small>
+                    {% else %}-{% endif %}
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary"
+                            data-bs-toggle="modal" data-bs-target="#pkgModal"
+                            onclick="loadPackage({{ pkg.id }})">
+                        <i class="bi bi-info-circle"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body">
+        <div class="row g-3">
+        {% for pkg in packages %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card pkg-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <code class="ttn">{{ pkg.tracking_number }}</code>
+                        {% if pkg.direction == 'incoming' %}
+                        <span class="badge bg-success"><i class="bi bi-arrow-down-circle"></i> {{ t('incoming') }}</span>
+                        {% else %}
+                        <span class="badge bg-primary"><i class="bi bi-arrow-up-circle"></i> {{ t('outgoing') }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="mb-1">
+                        <small class="text-muted">{{ t('sender') }}</small><br>
+                        <strong>{{ pkg.sender_name or '-' }}</strong>
+                        <small class="text-muted d-block">{{ pkg.sender_city or '' }}</small>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted">{{ t('recipient') }}</small><br>
+                        <strong>
+                            {{ pkg.recipient_name or '-' }}
+                            {% if pkg.recipient_contact and pkg.recipient_contact != pkg.recipient_name %}
+                            <span class="text-muted fw-normal">({{ pkg.recipient_contact }})</span>
+                            {% endif %}
+                        </strong>
+                        <small class="text-muted d-block">{{ pkg.recipient_city or '' }}</small>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        {% if pkg.is_delivered %}
+                        <span class="badge bg-success">{{ pkg.status }}</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">{{ pkg.status }}</span>
+                        {% endif %}
+                        <button class="btn btn-sm btn-primary"
+                                data-bs-toggle="modal" data-bs-target="#pkgModal"
+                                onclick="loadPackage({{ pkg.id }})">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if pagination.has_prev %}
+            <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}{% for k,v in request.args.items() if k != 'page' %}&{{ k }}={{ v }}{% endfor %}">‹</a></li>
+            {% endif %}
+            {% for p in pagination.iter_pages() %}
+                {% if p %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}{% for k,v in request.args.items() if k != 'page' %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if pagination.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}{% for k,v in request.args.items() if k != 'page' %}&{{ k }}={{ v }}{% endfor %}">›</a></li>
+            {% endif %}
+        </ul></nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card-body text-center py-5">
+        <i class="bi bi-inbox text-muted" style="font-size:4rem"></i>
+        <p class="text-muted mt-3">{{ t('no_packages') }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Filter Modal -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-funnel me-2"></i>{{ t('filters') }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form method="GET">
+            {% if request.args.get('view') %}<input type="hidden" name="view" value="{{ request.args.get('view') }}">{% endif %}
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">{{ t('direction') }}</label>
+                    <select class="form-select" name="direction">
+                        <option value="all">{{ t('all') }}</option>
+                        <option value="incoming" {% if request.args.get('direction') == 'incoming' %}selected{% endif %}>{{ t('incoming') }}</option>
+                        <option value="outgoing" {% if request.args.get('direction') == 'outgoing' %}selected{% endif %}>{{ t('outgoing') }}</option>
+                    </select>
+                </div>
+                {% if available_apis %}
+                <div class="mb-3">
+                    <label class="form-label">{{ t('api_keys') }}</label>
+                    <div class="border rounded p-3" style="max-height:180px;overflow-y:auto">
+                        {% for api in available_apis %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="api" value="{{ api.id }}"
+                                   id="a{{ api.id }}" {% if api.id|string in request.args.getlist('api') %}checked{% endif %}>
+                            <label class="form-check-label" for="a{{ api.id }}">{{ api.label }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="mb-3">
+                    <label class="form-label">{{ t('status') }}</label>
+                    <select class="form-select" name="status">
+                        <option value="">{{ t('all') }}</option>
+                        <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>{{ t('active') }}</option>
+                        <option value="delivered" {% if request.args.get('status') == 'delivered' %}selected{% endif %}>{{ t('delivered') }}</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ t('date_range') }}</label>
+                    <select class="form-select" name="days">
+                        <option value="">{{ t('all_time') }}</option>
+                        <option value="1" {% if request.args.get('days') == '1' %}selected{% endif %}>{{ t('days_1') }}</option>
+                        <option value="5" {% if request.args.get('days') == '5' %}selected{% endif %}>{{ t('days_5') }}</option>
+                        <option value="7" {% if request.args.get('days') == '7' %}selected{% endif %}>{{ t('days_7') }}</option>
+                        <option value="14" {% if request.args.get('days') == '14' %}selected{% endif %}>{{ t('days_14') }}</option>
+                        <option value="30" {% if request.args.get('days') == '30' %}selected{% endif %}>{{ t('days_30') }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('packages') }}" class="btn btn-outline-secondary">{{ t('reset') }}</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('cancel') }}</button>
+                <button type="submit" class="btn btn-primary">{{ t('apply') }}</button>
+            </div>
+        </form>
+    </div></div>
+</div>
+
+<!-- Package Detail Modal -->
+<div class="modal fade" id="pkgModal" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>{{ t('package_details') }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="pkgModalBody">
+            <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+        </div>
+    </div></div>
+</div>
+
+{% block extra_js %}
+<script>
+function loadPackage(id) {
+    const body = document.getElementById('pkgModalBody');
+    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+    fetch(`/package/${id}`)
+        .then(r => r.text())
+        .then(html => { body.innerHTML = html; })
+        .catch(e => { body.innerHTML = `<div class="alert alert-danger">${e}</div>`; });
+}
+</script>
+{% endblock %}
+{% endblock %}

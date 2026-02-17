@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ t('login') }} - Nova Poshta{% endblock %}
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-box">
+        <div class="text-center mb-4">
+            <i class="bi bi-box-seam login-icon"></i>
+            <h2 class="mt-2 mb-1">Nova Poshta</h2>
+            <p class="text-muted">{{ t('tracking_system') }}</p>
+        </div>
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">{{ t('username') }}</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control" name="username" required autofocus>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">{{ t('password') }}</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input type="password" class="form-control" name="password" required>
+                </div>
+            </div>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                <label class="form-check-label" for="remember">{{ t('remember_me') }}</label>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2">
+                <i class="bi bi-box-arrow-in-right me-2"></i>{{ t('sign_in') }}
+            </button>
+        </form>
+        <p class="text-center text-muted mt-4 mb-0"><small>{{ t('no_account') }}</small></p>
+    </div>
+</div>
+{% endblock %}

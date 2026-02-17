@@ -1,0 +1,126 @@
+/* ============================================================
+   Dark Theme — Material Design inspired
+   ============================================================ */
+
+body.theme-dark {
+    background-color: #1e1e1e;
+    color: #e4e4e4;
+}
+
+/* Navbar */
+body.theme-dark .navbar {
+    background: #2d2d30 !important;
+    border-bottom-color: rgba(255,255,255,.08);
+}
+body.theme-dark .navbar-brand { color: #ffffff !important; }
+body.theme-dark .navbar-brand i { color: #E30613; }
+body.theme-dark .nav-link { color: #cccccc !important; }
+body.theme-dark .nav-link:hover { background: rgba(227,6,19,.18); color: #ffffff !important; }
+body.theme-dark .nav-link.active { background: rgba(227,6,19,.25); color: #ffffff !important; }
+body.theme-dark .navbar-toggler { border-color: rgba(255,255,255,.2); }
+body.theme-dark .navbar-toggler-icon { filter: invert(1); }
+
+/* Cards — no bg-white override */
+body.theme-dark .card { background: #2d2d30; color: #e4e4e4; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+body.theme-dark .card-header { background: #3a3a3d !important; color: #ffffff; border-bottom-color: rgba(255,255,255,.08); }
+body.theme-dark .card-footer { background: #3a3a3d !important; border-top-color: rgba(255,255,255,.08); }
+
+/* Stat cards */
+body.theme-dark .stat-icon-primary { background: rgba(227,6,19,.2); }
+body.theme-dark .stat-icon-warning { background: rgba(255,193,7,.2); }
+body.theme-dark .stat-icon-success { background: rgba(25,135,84,.2); }
+
+/* Tables */
+body.theme-dark .table { color: #e4e4e4; --bs-table-bg: transparent; }
+body.theme-dark .table thead th { background: #3a3a3d; color: #ffffff; border-bottom-color: rgba(255,255,255,.1); border-color: rgba(255,255,255,.1); }
+body.theme-dark .table tbody td { border-color: rgba(255,255,255,.07); color: #e4e4e4; }
+body.theme-dark .table tbody tr { background: transparent; }
+body.theme-dark .table-hover tbody tr:hover { background: rgba(255,255,255,.05) !important; }
+body.theme-dark .table-light { background: #3a3a3d !important; }
+
+/* Package card */
+body.theme-dark .pkg-card { background: #2d2d30 !important; border-color: rgba(255,255,255,.1) !important; }
+body.theme-dark .pkg-card:hover { background: #363639 !important; }
+
+/* TTN code */
+body.theme-dark code, body.theme-dark .ttn { background: rgba(227,6,19,.2); color: #ff8080; }
+
+/* Forms */
+body.theme-dark .form-control,
+body.theme-dark .form-select {
+    background: #3a3a3d;
+    color: #e4e4e4;
+    border-color: rgba(255,255,255,.18);
+}
+body.theme-dark .form-control:focus,
+body.theme-dark .form-select:focus {
+    background: #3a3a3d;
+    color: #e4e4e4;
+    border-color: #E30613;
+    box-shadow: 0 0 0 .2rem rgba(227,6,19,.25);
+}
+body.theme-dark .form-control::placeholder { color: #888; }
+body.theme-dark .form-control:disabled,
+body.theme-dark .form-control[disabled] { background: #333336; color: #888; }
+body.theme-dark .form-label { color: #cccccc; }
+body.theme-dark .input-group-text { background: #333336; border-color: rgba(255,255,255,.18); color: #cccccc; }
+body.theme-dark .form-check-input { background-color: #3a3a3d; border-color: rgba(255,255,255,.3); }
+body.theme-dark .form-check-input:checked { background-color: #E30613; border-color: #E30613; }
+body.theme-dark .form-check-label { color: #cccccc; }
+
+/* Buttons */
+body.theme-dark .btn-outline-primary { color: #ff8080; border-color: rgba(227,6,19,.5); }
+body.theme-dark .btn-outline-primary:hover { background: #E30613; border-color: #E30613; color: #fff; }
+body.theme-dark .btn-outline-secondary { color: #cccccc; border-color: rgba(255,255,255,.2); }
+body.theme-dark .btn-outline-secondary:hover { background: #3a3a3d; border-color: #3a3a3d; color: #fff; }
+body.theme-dark .btn-secondary { background: #3a3a3d; border-color: #3a3a3d; color: #cccccc; }
+body.theme-dark .btn-secondary:hover { background: #444447; }
+
+/* Dropdowns */
+body.theme-dark .dropdown-menu { background: #2d2d30; border: 1px solid rgba(255,255,255,.1); }
+body.theme-dark .dropdown-item { color: #cccccc; }
+body.theme-dark .dropdown-item:hover { background: rgba(227,6,19,.15); color: #ffffff; }
+body.theme-dark .dropdown-item.active { background: #E30613; color: #fff; }
+body.theme-dark .dropdown-divider { border-color: rgba(255,255,255,.1); }
+
+/* Modal */
+body.theme-dark .modal-content { background: #2d2d30; color: #e4e4e4; }
+body.theme-dark .modal-header { background: #3a3a3d; border-bottom-color: rgba(255,255,255,.08); }
+body.theme-dark .modal-footer { background: #3a3a3d; border-top-color: rgba(255,255,255,.08); }
+body.theme-dark .modal-body { background: #2d2d30; }
+body.theme-dark .btn-close { filter: invert(1); opacity: .7; }
+body.theme-dark .btn-close:hover { opacity: 1; }
+
+/* Alerts */
+body.theme-dark .alert { background: #2d2d30; color: #e4e4e4; border-color: rgba(255,255,255,.1); }
+body.theme-dark .alert-success { background: #1e3b1e; color: #b8d4b8; }
+body.theme-dark .alert-danger  { background: #3b1e1e; color: #d4b8b8; }
+body.theme-dark .alert-warning { background: #3b381e; color: #d4d0b8; }
+body.theme-dark .alert .btn-close { filter: invert(.5) brightness(2); }
+
+/* Pagination */
+body.theme-dark .page-link { background: #2d2d30; border-color: rgba(255,255,255,.12); color: #e4e4e4; }
+body.theme-dark .page-link:hover { background: #3a3a3d; color: #fff; }
+body.theme-dark .page-item.active .page-link { background: #E30613; border-color: #E30613; }
+body.theme-dark .page-item.disabled .page-link { background: #2d2d30; color: #666; }
+
+/* Text */
+body.theme-dark h1, body.theme-dark h2, body.theme-dark h3,
+body.theme-dark h4, body.theme-dark h5, body.theme-dark h6 { color: #ffffff; }
+body.theme-dark .text-muted { color: #a0a0a0 !important; }
+body.theme-dark small { color: #999; }
+
+/* Login */
+body.theme-dark .login-box { background: #2d2d30; box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+body.theme-dark .login-wrapper { background: #1e1e1e; }
+
+/* Footer */
+body.theme-dark .footer { background: #2d2d30; border-top-color: rgba(255,255,255,.08); }
+body.theme-dark .footer .text-muted { color: #888 !important; }
+
+/* Badges */
+body.theme-dark .badge.bg-warning { color: #1e1e1e !important; }
+body.theme-dark .badge.bg-info    { color: #1e1e1e !important; }
+
+/* Spinner */
+body.theme-dark .spinner-border.text-primary { color: #E30613 !important; }
