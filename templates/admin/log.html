@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Activity Log - Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-journal-text me-2"></i>Activity Log</h2>
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small" id="last-refresh">
+            <i class="bi bi-arrow-clockwise"></i> Auto-refresh: <span id="countdown">30</span>s
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" name="status">
+                    <option value="">All</option>
+                    <option value="success" {% if request.args.get('status') == 'success' %}selected{% endif %}>✅ Success</option>
+                    <option value="error"   {% if request.args.get('status') == 'error'   %}selected{% endif %}>❌ Error</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Type</label>
+                <select class="form-select form-select-sm" name="type">
+                    <option value="">All</option>
+                    <option value="manual" {% if request.args.get('type') == 'manual' %}selected{% endif %}>Manual</option>
+                    <option value="auto"   {% if request.args.get('type') == 'auto'   %}selected{% endif %}>Auto</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">API Key</label>
+                <select class="form-select form-select-sm" name="api">
+                    <option value="">All</option>
+                    {% for key in api_keys %}
+                    <option value="{{ key.id }}" {% if request.args.get('api')|int == key.id %}selected{% endif %}>{{ key.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">User</label>
+                <select class="form-select form-select-sm" name="user">
+                    <option value="">All</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if request.args.get('user')|int == user.id %}selected{% endif %}>{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Period</label>
+                <select class="form-select form-select-sm" name="days">
+                    <option value="">All time</option>
+                    <option value="1"  {% if request.args.get('days') == '1'  %}selected{% endif %}>Last 24h</option>
+                    <option value="7"  {% if request.args.get('days') == '7'  %}selected{% endif %}>Last 7 days</option>
+                    <option value="30" {% if request.args.get('days') == '30' %}selected{% endif %}>Last 30 days</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                    <i class="bi bi-funnel"></i>
+                </button>
+                <a href="{{ url_for('admin_log') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-x"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Log Table -->
+<div class="card">
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 log-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Type</th>
+                    <th>API Key</th>
+                    <th>User</th>
+                    <th>Result</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for log in logs %}
+            <tr class="{% if log.status == 'error' %}table-danger-subtle{% endif %}">
+                <td class="text-nowrap">
+                    <span class="fw-semibold">{{ log.created_at.strftime('%d.%m.%Y') }}</span>
+                    <br><small class="text-muted">{{ log.created_at.strftime('%H:%M:%S') }}</small>
+                </td>
+                <td>
+                    {% if log.sync_type == 'manual' %}
+                    <span class="badge bg-primary">
+                        <i class="bi bi-hand-index"></i> Manual
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="bi bi-arrow-repeat"></i> Auto
+                    </span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.api_key %}
+                    <i class="bi bi-key text-primary me-1"></i>{{ log.api_key.label }}
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.user %}
+                    <i class="bi bi-person me-1"></i>{{ log.user.username }}
+                    {% else %}
+                    <span class="text-muted">system</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.status == 'success' %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> OK</span>
+                    {% else %}
+                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Error</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.status == 'success' %}
+                    <small>
+                        <i class="bi bi-cloud-download text-muted"></i> {{ log.packages_fetched }} fetched
+                        &nbsp;·&nbsp;
+                        <i class="bi bi-plus-circle text-success"></i> {{ log.packages_created or 0 }} new
+                        &nbsp;·&nbsp;
+                        <i class="bi bi-arrow-clockwise text-warning"></i> {{ log.packages_updated or 0 }} updated
+                    </small>
+                    {% else %}
+                    <small class="text-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        {{ log.error_message or 'Unknown error' }}
+                    </small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ pagination.prev_num }}{% for k,v in request.args.items() if k != 'page' %}&{{ k }}={{ v }}{% endfor %}">‹</a>
+            </li>
+            {% endif %}
+            {% for p in pagination.iter_pages() %}
+                {% if p %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}{% for k,v in request.args.items() if k != 'page' %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ pagination.next_num }}{% for k,v in request.args.items() if k != 'page' %}&{{ k }}={{ v }}{% endfor %}">›</a>
+            </li>
+            {% endif %}
+        </ul></nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card-body text-center py-5">
+        <i class="bi bi-journal text-muted" style="font-size:3rem"></i>
+        <p class="text-muted mt-3">No log entries found</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh countdown
+let seconds = 30;
+const cd = document.getElementById('countdown');
+setInterval(() => {
+    seconds--;
+    if (cd) cd.textContent = seconds;
+    if (seconds <= 0) location.reload();
+}, 1000);
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.table-danger-subtle td { background-color: rgba(220,53,69,.06); }
+body.theme-dark .table-danger-subtle td { background-color: rgba(220,53,69,.15); }
+.log-table td { font-size: .9rem; }
+</style>
+{% endblock %}

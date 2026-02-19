@@ -88,8 +88,12 @@
                     <small class="text-muted">{{ pkg.date_created.strftime('%H:%M') }}</small>
                     {% else %}-{% endif %}
                 </td>
-                <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary"
+                <td class="text-end text-nowrap">
+                    <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
+                       class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
+                        <i class="bi bi-file-pdf"></i>
+                    </a>
+                    <button class="btn btn-sm btn-primary ms-1"
                             data-bs-toggle="modal" data-bs-target="#pkgModal"
                             onclick="loadPackage({{ pkg.id }})">
                         <i class="bi bi-info-circle"></i>
@@ -130,16 +134,22 @@
                         </strong>
                         <small class="text-muted d-block">{{ pkg.recipient_city or '' }}</small>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="mb-2">
                         {% if pkg.is_delivered %}
-                        <span class="badge bg-success">{{ pkg.status }}</span>
+                        <span class="badge bg-success text-wrap text-start">{{ pkg.status }}</span>
                         {% else %}
-                        <span class="badge bg-warning text-dark">{{ pkg.status }}</span>
+                        <span class="badge bg-warning text-dark text-wrap text-start">{{ pkg.status }}</span>
                         {% endif %}
-                        <button class="btn btn-sm btn-primary"
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
+                           class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
+                            <i class="bi bi-file-pdf"></i>
+                        </a>
+                        <button class="btn btn-sm btn-primary flex-grow-1"
                                 data-bs-toggle="modal" data-bs-target="#pkgModal"
                                 onclick="loadPackage({{ pkg.id }})">
-                            <i class="bi bi-info-circle"></i>
+                            <i class="bi bi-info-circle me-1"></i>{{ t('package_details') }}
                         </button>
                     </div>
                 </div>

@@ -1,17 +1,20 @@
 """
-Nova Poshta Package Tracking Web Application
-Complete clean version with all fixes applied
+Nova Poshta Package Tracking Web Application v1.1
+Features: Import/Export API keys, Unified sync, Incoming packages, Detailed error logging
 """
 
 import os
+import json
 import requests
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from sqlalchemy import desc
+from io import BytesIO
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-in-production')
@@ -62,6 +65,7 @@ TRANSLATIONS = {
         'no_account': 'No account? Contact administrator.',
         'days_1': 'Last 24 hours', 'days_5': 'Last 5 days', 'days_7': 'Last 7 days',
         'days_14': 'Last 14 days', 'days_30': 'Last 30 days', 'all_time': 'All time',
+        'sync_all': 'Sync All', 'import_api_keys': 'Import', 'export_api_keys': 'Export',
     },
     'uk': {
         'dashboard': 'Головна', 'packages': 'Посилки', 'settings': 'Налаштування',
@@ -98,6 +102,7 @@ TRANSLATIONS = {
         'days_1': 'Останні 24 години', 'days_5': 'Останні 5 днів',
         'days_7': 'Останні 7 днів', 'days_14': 'Останні 14 днів',
         'days_30': 'Останні 30 днів', 'all_time': 'Весь час',
+        'sync_all': 'Синхронізувати все', 'import_api_keys': 'Імпорт', 'export_api_keys': 'Експорт',
     }
 }
 
@@ -121,7 +126,7 @@ class User(UserMixin, db.Model):
     username      = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     full_name     = db.Column(db.String(200))
-    role          = db.Column(db.String(20), nullable=False)  # admin, manager, courier
+    role          = db.Column(db.String(20), nullable=False)
     is_active     = db.Column(db.Boolean, default=True)
     must_change_password = db.Column(db.Boolean, default=False)
     theme         = db.Column(db.String(10), default='light')
@@ -143,6 +148,7 @@ class APIKey(db.Model):
     label               = db.Column(db.String(100), nullable=False)
     api_key             = db.Column(db.String(255), nullable=False, unique=True)
     sender_identifier   = db.Column(db.String(200))
+    counterparty_ref    = db.Column(db.String(255))
     is_active           = db.Column(db.Boolean, default=True)
     auto_sync           = db.Column(db.Boolean, default=True)
     created_at          = db.Column(db.DateTime, default=datetime.utcnow)
@@ -166,7 +172,7 @@ class Package(db.Model):
     id                  = db.Column(db.Integer, primary_key=True)
     api_key_id          = db.Column(db.Integer, db.ForeignKey('api_keys.id'), nullable=False)
     tracking_number     = db.Column(db.String(100), unique=True, nullable=False, index=True)
-    direction           = db.Column(db.String(10))   # incoming / outgoing
+    direction           = db.Column(db.String(10))
     sender_city         = db.Column(db.String(200))
     sender_name         = db.Column(db.String(200))
     sender_phone        = db.Column(db.String(50))
@@ -195,12 +201,17 @@ class SyncLog(db.Model):
     __tablename__ = 'sync_logs'
     id               = db.Column(db.Integer, primary_key=True)
     api_key_id       = db.Column(db.Integer, db.ForeignKey('api_keys.id'))
+    api_key          = db.relationship('APIKey', foreign_keys='[SyncLog.api_key_id]')
     user_id          = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user             = db.relationship('User', foreign_keys='[SyncLog.user_id]')
     sync_type        = db.Column(db.String(20))
+    sync_direction   = db.Column(db.String(20))
     packages_fetched = db.Column(db.Integer, default=0)
+    packages_created = db.Column(db.Integer, default=0)
     packages_updated = db.Column(db.Integer, default=0)
     status           = db.Column(db.String(20))
     error_message    = db.Column(db.Text)
+    api_response     = db.Column(db.JSON)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -243,7 +254,7 @@ class NovaPoshtaAPI:
         data = r.json()
         if not data.get('success'):
             raise Exception(', '.join(data.get('errors', ['Unknown error'])))
-        return data.get('data', [])
+        return data.get('data', []), data
 
     def get_documents_list(self, date_from, limit=100):
         return self._post('InternetDocument', 'getDocumentList', {
@@ -254,9 +265,15 @@ class NovaPoshtaAPI:
             'GetFullList': '1'
         })
 
-    def get_tracking_status(self, tracking_numbers):
-        docs = [{'DocumentNumber': n} for n in tracking_numbers]
-        return self._post('TrackingDocument', 'getStatusDocuments', {'Documents': docs})
+    def get_counterparty_documents(self, counterparty_ref, date_from, limit=100):
+        return self._post('InternetDocument', 'getDocumentList', {
+            'CounterpartyRef': counterparty_ref,
+            'DateFrom': date_from.strftime('%d.%m.%Y'),
+            'DateTo': datetime.now().strftime('%d.%m.%Y'),
+            'Page': '1',
+            'Limit': str(limit),
+            'GetFullList': '1'
+        })
 
 
 def _parse_dt(s, fmt='%Y-%m-%d %H:%M:%S'):
@@ -266,70 +283,170 @@ def _parse_dt(s, fmt='%Y-%m-%d %H:%M:%S'):
         return None
 
 
-def sync_packages(api_key_obj, days=5, sync_type='manual', user_id=None):
-    try:
-        api = NovaPoshtaAPI(api_key_obj.api_key)
-        documents = api.get_documents_list(datetime.now() - timedelta(days=days))
+def sync_packages(api_key_obj, days=5, sync_type='manual', user_id=None, direction='both'):
+    """
+    Unified sync function - syncs outgoing, incoming, or both based on direction parameter
+    direction: 'outgoing', 'incoming', or 'both'
+    """
+    results = []
+    
+    # Sync outgoing (packages created by us)
+    if direction in ['outgoing', 'both']:
+        try:
+            api = NovaPoshtaAPI(api_key_obj.api_key)
+            documents, full_response = api.get_documents_list(datetime.now() - timedelta(days=days))
 
-        fetched = len(documents)
-        updated = 0
+            fetched = len(documents)
+            created = 0
+            updated = 0
 
-        for doc in documents:
-            tn = doc.get('IntDocNumber')
-            if not tn:
-                continue
+            for doc in documents:
+                tn = doc.get('IntDocNumber')
+                if not tn:
+                    continue
 
-            # Direction detection
-            sender_phone = doc.get('SendersPhone', '')
-            sender_name  = doc.get('SenderDescription', '')
-            ident = api_key_obj.sender_identifier or ''
-            direction = 'outgoing' if ident and (ident in sender_phone or ident in sender_name) else 'incoming'
+                pkg = Package.query.filter_by(tracking_number=tn).first()
+                is_new = pkg is None
+                if is_new:
+                    pkg = Package(api_key_id=api_key_obj.id, tracking_number=tn)
+                    db.session.add(pkg)
+                    created += 1
 
-            pkg = Package.query.filter_by(tracking_number=tn).first()
-            if not pkg:
-                pkg = Package(api_key_id=api_key_obj.id, tracking_number=tn)
-                db.session.add(pkg)
-                updated += 1
+                old_status = pkg.status_code
 
-            pkg.direction           = direction
-            pkg.sender_city         = doc.get('CitySenderDescription')
-            pkg.sender_name         = doc.get('SenderDescription')
-            pkg.sender_phone        = doc.get('SendersPhone')
-            pkg.recipient_city      = doc.get('CityRecipientDescription')
-            pkg.recipient_name      = doc.get('RecipientDescription')
-            pkg.recipient_phone     = doc.get('RecipientsPhone')
-            pkg.recipient_warehouse = doc.get('RecipientAddressDescription')
-            pkg.recipient_contact   = doc.get('RecipientContactPerson')
-            pkg.status              = doc.get('StateName')
-            pkg.status_code         = str(doc.get('StateId', ''))
-            pkg.date_created        = _parse_dt(doc.get('DateTime'))
-            pkg.planned_delivery_date = _parse_dt(doc.get('ScheduledDeliveryDate'))
-            if pkg.planned_delivery_date:
-                pkg.planned_delivery_date = pkg.planned_delivery_date.date()
-            pkg.actual_delivery_date = _parse_dt(doc.get('RecipientDateTime'))
-            pkg.package_cost        = float(doc.get('Cost') or 0)
-            pkg.shipment_cost       = float(doc.get('CostOnSite') or 0)
-            pkg.weight              = float(doc.get('Weight') or 0)
-            pkg.package_count       = int(doc.get('SeatsAmount') or 1)
-            pkg.description         = doc.get('Description')
-            pkg.is_delivered        = doc.get('StateId') in [9, 10]
-            pkg.raw_data            = doc
+                pkg.direction           = 'outgoing'
+                pkg.sender_city         = doc.get('CitySenderDescription')
+                pkg.sender_name         = doc.get('SenderDescription')
+                pkg.sender_phone        = doc.get('SendersPhone')
+                pkg.recipient_city      = doc.get('CityRecipientDescription')
+                pkg.recipient_name      = doc.get('RecipientDescription')
+                pkg.recipient_phone     = doc.get('RecipientsPhone')
+                pkg.recipient_warehouse = doc.get('RecipientAddressDescription')
+                pkg.recipient_contact   = doc.get('RecipientContactPerson')
+                pkg.status              = doc.get('StateName')
+                pkg.status_code         = str(doc.get('StateId', ''))
+                pkg.date_created        = _parse_dt(doc.get('DateTime'))
+                pkg.planned_delivery_date = _parse_dt(doc.get('ScheduledDeliveryDate'))
+                if pkg.planned_delivery_date:
+                    pkg.planned_delivery_date = pkg.planned_delivery_date.date()
+                pkg.actual_delivery_date = _parse_dt(doc.get('RecipientDateTime'))
+                pkg.package_cost        = float(doc.get('Cost') or 0)
+                pkg.shipment_cost       = float(doc.get('CostOnSite') or 0)
+                pkg.weight              = float(doc.get('Weight') or 0)
+                pkg.package_count       = int(doc.get('SeatsAmount') or 1)
+                pkg.description         = doc.get('Description')
+                pkg.is_delivered        = doc.get('StateId') in [9, 10]
+                pkg.raw_data            = doc
 
-        db.session.commit()
-        api_key_obj.last_sync = datetime.utcnow()
-        db.session.commit()
+                if not is_new and old_status != pkg.status_code:
+                    updated += 1
 
-        db.session.add(SyncLog(api_key_id=api_key_obj.id, user_id=user_id,
-                               sync_type=sync_type, packages_fetched=fetched,
-                               packages_updated=updated, status='success'))
-        db.session.commit()
-        return True, f'Fetched {fetched}, updated {updated}'
-    except Exception as e:
-        db.session.rollback()
-        db.session.add(SyncLog(api_key_id=api_key_obj.id, user_id=user_id,
-                               sync_type=sync_type, status='error', error_message=str(e)))
-        db.session.commit()
-        return False, str(e)
+            db.session.commit()
+            api_key_obj.last_sync = datetime.utcnow()
+
+            log = SyncLog(
+                api_key_id       = api_key_obj.id,
+                user_id          = user_id,
+                sync_type        = sync_type,
+                sync_direction   = 'outgoing',
+                packages_fetched = fetched,
+                packages_created = created,
+                packages_updated = updated,
+                status           = 'success',
+                api_response     = full_response
+            )
+            db.session.add(log)
+            db.session.commit()
+            results.append(f'Out: {fetched}📦 ({created}🆕 {updated}🔄)')
+        except Exception as e:
+            db.session.rollback()
+            log = SyncLog(api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
+                          sync_direction='outgoing', status='error', error_message=str(e))
+            db.session.add(log)
+            db.session.commit()
+            results.append(f'Out: ❌ {str(e)[:50]}')
+
+    # Sync incoming (packages sent to us)
+    if direction in ['incoming', 'both'] and api_key_obj.counterparty_ref:
+        try:
+            api = NovaPoshtaAPI(api_key_obj.api_key)
+            documents, full_response = api.get_counterparty_documents(
+                api_key_obj.counterparty_ref,
+                datetime.now() - timedelta(days=days)
+            )
+
+            fetched = len(documents)
+            created = 0
+            updated = 0
+
+            for doc in documents:
+                tn = doc.get('IntDocNumber')
+                if not tn:
+                    continue
+
+                pkg = Package.query.filter_by(tracking_number=tn).first()
+                is_new = pkg is None
+                if is_new:
+                    pkg = Package(api_key_id=api_key_obj.id, tracking_number=tn)
+                    db.session.add(pkg)
+                    created += 1
+
+                old_status = pkg.status_code
+
+                pkg.direction           = 'incoming'
+                pkg.sender_city         = doc.get('CitySenderDescription')
+                pkg.sender_name         = doc.get('SenderDescription')
+                pkg.sender_phone        = doc.get('SendersPhone')
+                pkg.recipient_city      = doc.get('CityRecipientDescription')
+                pkg.recipient_name      = doc.get('RecipientDescription')
+                pkg.recipient_phone     = doc.get('RecipientsPhone')
+                pkg.recipient_warehouse = doc.get('RecipientAddressDescription')
+                pkg.recipient_contact   = doc.get('RecipientContactPerson')
+                pkg.status              = doc.get('StateName')
+                pkg.status_code         = str(doc.get('StateId', ''))
+                pkg.date_created        = _parse_dt(doc.get('DateTime'))
+                pkg.planned_delivery_date = _parse_dt(doc.get('ScheduledDeliveryDate'))
+                if pkg.planned_delivery_date:
+                    pkg.planned_delivery_date = pkg.planned_delivery_date.date()
+                pkg.actual_delivery_date = _parse_dt(doc.get('RecipientDateTime'))
+                pkg.package_cost        = float(doc.get('Cost') or 0)
+                pkg.shipment_cost       = float(doc.get('CostOnSite') or 0)
+                pkg.weight              = float(doc.get('Weight') or 0)
+                pkg.package_count       = int(doc.get('SeatsAmount') or 1)
+                pkg.description         = doc.get('Description')
+                pkg.is_delivered        = doc.get('StateId') in [9, 10]
+                pkg.raw_data            = doc
+
+                if not is_new and old_status != pkg.status_code:
+                    updated += 1
+
+            db.session.commit()
+
+            log = SyncLog(
+                api_key_id       = api_key_obj.id,
+                user_id          = user_id,
+                sync_type        = sync_type,
+                sync_direction   = 'incoming',
+                packages_fetched = fetched,
+                packages_created = created,
+                packages_updated = updated,
+                status           = 'success',
+                api_response     = full_response
+            )
+            db.session.add(log)
+            db.session.commit()
+            results.append(f'In: {fetched}📦 ({created}🆕 {updated}🔄)')
+        except Exception as e:
+            db.session.rollback()
+            log = SyncLog(api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
+                          sync_direction='incoming', status='error', error_message=str(e))
+            db.session.add(log)
+            db.session.commit()
+            results.append(f'In: ❌ {str(e)[:50]}')
+    elif direction in ['incoming', 'both'] and not api_key_obj.counterparty_ref:
+        results.append('In: ⚠️ No counterparty_ref')
+
+    return len(results) > 0, ' | '.join(results)
 
 
 def cooldown_ok(api_key_obj):
@@ -339,7 +456,7 @@ def cooldown_ok(api_key_obj):
     cd   = timedelta(minutes=5)
     if diff < cd:
         mins = int((cd - diff).total_seconds() / 60) + 1
-        return False, f'Wait {mins} min before next sync'
+        return False, f'Wait {mins} min'
     return True, None
 
 # ---------------------------------------------------------------------------
@@ -484,7 +601,6 @@ def package_invoice(tracking_number):
         if pkg.api_key_id not in ids:
             flash('Access denied.', 'danger')
             return redirect(url_for('packages'))
-    # Redirect to Nova Poshta direct print URL
     url = f"https://my.novaposhta.ua/orders/printDocument/orders[]/{tracking_number}/type/pdf/apiKey/{pkg.api_key.api_key}"
     return redirect(url)
 
@@ -492,18 +608,44 @@ def package_invoice(tracking_number):
 @app.route('/sync/<int:api_key_id>', methods=['POST'])
 @login_required
 def sync_api(api_key_id):
+    """Unified sync - syncs single API key (both directions)"""
     key = APIKey.query.get_or_404(api_key_id)
     if current_user.role != 'admin':
         ids = [tr.api_key_id for tr in current_user.tracked_apis]
         if api_key_id not in ids:
             return jsonify({'error': 'Access denied'}), 403
+    
     ok, msg = cooldown_ok(key)
     if not ok:
         return jsonify({'error': msg}), 429
-    success, message = sync_packages(key, days=5, sync_type='manual', user_id=current_user.id)
+    
+    success, message = sync_packages(key, days=5, sync_type='manual', user_id=current_user.id, direction='both')
+    
     if success:
         return jsonify({'success': True, 'message': message})
     return jsonify({'error': message}), 500
+
+
+@app.route('/sync/all', methods=['POST'])
+@login_required
+def sync_all():
+    """Sync all API keys available to user"""
+    if current_user.role == 'admin':
+        keys = APIKey.query.filter_by(is_active=True).all()
+    else:
+        keys = [tr.api_key for tr in current_user.tracked_apis if tr.api_key.is_active]
+    
+    results = []
+    for key in keys:
+        ok, msg = cooldown_ok(key)
+        if not ok:
+            results.append(f"<strong>{key.label}</strong>: {msg}")
+            continue
+        
+        success, message = sync_packages(key, days=5, sync_type='manual', user_id=current_user.id, direction='both')
+        results.append(f"<strong>{key.label}</strong>: {message}")
+    
+    return jsonify({'success': True, 'message': '<br>'.join(results)})
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -587,6 +729,7 @@ def admin_add_api_key():
         else:
             k = APIKey(label=request.form.get('label'), api_key=key,
                        sender_identifier=request.form.get('sender_identifier'),
+                       counterparty_ref=request.form.get('counterparty_ref'),
                        auto_sync=bool(request.form.get('auto_sync')),
                        created_by=current_user.id)
             db.session.add(k)
@@ -603,12 +746,111 @@ def admin_edit_api_key(key_id):
     if request.method == 'POST':
         key.label             = request.form.get('label')
         key.sender_identifier = request.form.get('sender_identifier')
+        key.counterparty_ref  = request.form.get('counterparty_ref')
         key.auto_sync         = bool(request.form.get('auto_sync'))
         key.is_active         = bool(request.form.get('is_active'))
         db.session.commit()
         flash(f'API key "{key.label}" updated.', 'success')
         return redirect(url_for('admin_api_keys'))
     return render_template('admin/edit_api_key.html', api_key=key)
+
+
+@app.route('/admin/api-keys/export')
+@role_required('admin')
+def admin_export_api_keys():
+    keys = APIKey.query.all()
+    data = []
+    for k in keys:
+        data.append({
+            'label': k.label,
+            'api_key': k.api_key,
+            'sender_identifier': k.sender_identifier,
+            'counterparty_ref': k.counterparty_ref,
+            'auto_sync': k.auto_sync,
+            'is_active': k.is_active
+        })
+    
+    json_data = json.dumps(data, indent=2, ensure_ascii=False)
+    buffer = BytesIO(json_data.encode('utf-8'))
+    buffer.seek(0)
+    
+    return send_file(buffer, mimetype='application/json', as_attachment=True,
+                     download_name=f'api_keys_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
+
+
+@app.route('/admin/api-keys/import', methods=['POST'])
+@role_required('admin')
+def admin_import_api_keys():
+    if 'file' not in request.files:
+        flash('No file selected.', 'danger')
+        return redirect(url_for('admin_api_keys'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected.', 'danger')
+        return redirect(url_for('admin_api_keys'))
+    
+    try:
+        data = json.load(file)
+        imported = 0
+        skipped = 0
+        
+        for item in data:
+            if APIKey.query.filter_by(api_key=item['api_key']).first():
+                skipped += 1
+                continue
+            
+            k = APIKey(
+                label=item.get('label', 'Imported'),
+                api_key=item['api_key'],
+                sender_identifier=item.get('sender_identifier'),
+                counterparty_ref=item.get('counterparty_ref'),
+                auto_sync=item.get('auto_sync', True),
+                is_active=item.get('is_active', True),
+                created_by=current_user.id
+            )
+            db.session.add(k)
+            imported += 1
+        
+        db.session.commit()
+        flash(f'Imported {imported} API keys, skipped {skipped} duplicates.', 'success')
+    except Exception as e:
+        flash(f'Import failed: {str(e)}', 'danger')
+    
+    return redirect(url_for('admin_api_keys'))
+
+
+@app.route('/admin/log')
+@role_required('admin')
+def admin_log():
+    page      = request.args.get('page', 1, type=int)
+    per_page  = 50
+    q         = SyncLog.query
+
+    f_status  = request.args.get('status')
+    f_type    = request.args.get('type')
+    f_api     = request.args.get('api', type=int)
+    f_user    = request.args.get('user', type=int)
+    f_days    = request.args.get('days', type=int)
+
+    if f_status:  q = q.filter(SyncLog.status == f_status)
+    if f_type:    q = q.filter(SyncLog.sync_type == f_type)
+    if f_api:     q = q.filter(SyncLog.api_key_id == f_api)
+    if f_user:    q = q.filter(SyncLog.user_id == f_user)
+    if f_days:    q = q.filter(SyncLog.created_at >= datetime.utcnow() - timedelta(days=f_days))
+
+    pagination = q.order_by(desc(SyncLog.created_at)).paginate(page=page, per_page=per_page, error_out=False)
+    api_keys   = APIKey.query.all()
+    users      = User.query.all()
+    return render_template('admin/log.html', logs=pagination.items, pagination=pagination,
+                           api_keys=api_keys, users=users)
+
+
+@app.route('/admin/log/<int:log_id>/details')
+@role_required('admin')
+def admin_log_details(log_id):
+    log = SyncLog.query.get_or_404(log_id)
+    return render_template('admin/log_details.html', log=log)
 
 
 # ---------------------------------------------------------------------------

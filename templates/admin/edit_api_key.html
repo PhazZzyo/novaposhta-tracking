@@ -5,19 +5,32 @@
 <div class="row"><div class="col-md-7">
 <div class="card"><div class="card-body">
 <form method="POST">
-    <div class="mb-3"><label class="form-label">{{ t('label') }} *</label>
-        <input type="text" class="form-control" name="label" value="{{ api_key.label }}" required></div>
-    <div class="mb-3"><label class="form-label">API Key</label>
+    <div class="mb-3">
+        <label class="form-label">{{ t('label') }} *</label>
+        <input type="text" class="form-control" name="label" value="{{ api_key.label }}" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">API Key</label>
         <input type="text" class="form-control" value="{{ api_key.api_key[:8] }}...{{ api_key.api_key[-4:] }}" disabled>
-        <small class="text-muted">API key cannot be changed. Add a new key if needed.</small></div>
-    <div class="mb-3"><label class="form-label">{{ t('sender_identifier') }}</label>
-        <input type="text" class="form-control" name="sender_identifier" value="{{ api_key.sender_identifier or '' }}"></div>
+        <small class="text-muted">API key cannot be changed. Add a new key if needed.</small>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">{{ t('sender_identifier') }}</label>
+        <input type="text" class="form-control" name="sender_identifier" value="{{ api_key.sender_identifier or '' }}">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Counterparty Reference</label>
+        <input type="text" class="form-control" name="counterparty_ref" value="{{ api_key.counterparty_ref or '' }}">
+        <small class="text-muted">For tracking <strong>incoming</strong> packages</small>
+    </div>
     <div class="mb-3 form-check">
         <input type="checkbox" class="form-check-input" id="auto_sync" name="auto_sync" {% if api_key.auto_sync %}checked{% endif %}>
-        <label class="form-check-label" for="auto_sync">{{ t('auto_sync') }}</label></div>
+        <label class="form-check-label" for="auto_sync">{{ t('auto_sync') }}</label>
+    </div>
     <div class="mb-3 form-check">
         <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if api_key.is_active %}checked{% endif %}>
-        <label class="form-check-label" for="is_active">{{ t('active') }}</label></div>
+        <label class="form-check-label" for="is_active">{{ t('active') }}</label>
+    </div>
     <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> {{ t('save_changes') }}</button>
         <a href="{{ url_for('admin_api_keys') }}" class="btn btn-secondary">{{ t('cancel') }}</a>

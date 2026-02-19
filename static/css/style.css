@@ -197,3 +197,12 @@ code, .ttn {
 .dropdown-item:hover { background: var(--np-red-alpha); color: var(--np-red); }
 .dropdown-item.active, .dropdown-item:active { background: var(--np-red); color: #fff; }
 .dropdown-divider { margin: .3rem 0; }
+
+/* ---------- Card view — badge overflow fix ---------- */
+.pkg-card .badge {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.4;
+    max-width: 100%;
+    display: inline-block;
+}

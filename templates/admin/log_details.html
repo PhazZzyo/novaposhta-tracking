@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Log Details - Admin{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-file-text me-2"></i>Sync Log Details</h2>
+<div class="row"><div class="col-lg-10">
+    <div class="card mb-3">
+        <div class="card-header"><strong>Basic Info</strong></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-2">
+                    <small class="text-muted">Time:</small><br>
+                    <strong>{{ log.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</strong>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <small class="text-muted">Type:</small><br>
+                    <strong>{{ log.sync_type }} / {{ log.sync_direction or 'both' }}</strong>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <small class="text-muted">API Key:</small><br>
+                    <strong>{% if log.api_key %}{{ log.api_key.label }}{% else %}—{% endif %}</strong>
+                </div>
+                <div class="col-md-6 mb-2">
+                    <small class="text-muted">User:</small><br>
+                    <strong>{% if log.user %}{{ log.user.username }}{% else %}system{% endif %}</strong>
+                </div>
+                <div class="col-md-12 mb-2">
+                    <small class="text-muted">Result:</small><br>
+                    {% if log.status == 'success' %}
+                    <span class="badge bg-success">✓ Success</span>
+                    <span class="ms-2">{{ log.packages_fetched }} fetched · {{ log.packages_created or 0 }} created · {{ log.packages_updated or 0 }} updated</span>
+                    {% else %}
+                    <span class="badge bg-danger">✗ Error</span>
+                    <span class="ms-2 text-danger">{{ log.error_message }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if log.api_response %}
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>API Response</strong>
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyJSON()">
+                <i class="bi bi-clipboard"></i> Copy
+            </button>
+        </div>
+        <div class="card-body">
+            <pre id="json-content" class="mb-0" style="max-height:500px;overflow-y:auto;background:#f8f9fa;padding:1rem;border-radius:6px;font-size:0.85rem;"><code>{{ log.api_response|tojson(indent=2) }}</code></pre>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if log.error_message %}
+    <div class="card mb-3 border-danger">
+        <div class="card-header bg-danger text-white"><strong>Error Details</strong></div>
+        <div class="card-body">
+            <code class="text-danger">{{ log.error_message }}</code>
+        </div>
+    </div>
+    {% endif %}
+    
+    <a href="{{ url_for('admin_log') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Log
+    </a>
+</div></div>
+
+<script>
+function copyJSON() {
+    const content = document.getElementById('json-content').textContent;
+    navigator.clipboard.writeText(content).then(() => {
+        alert('Copied to clipboard!');
+    });
+}
+</script>
+{% endblock %}

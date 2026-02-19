@@ -128,7 +128,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/novaposhta_db
 1. Log in as `sysadmin`
 2. Go to **Admin → API Keys → Add API Key**
 3. Fill in:
-   - **Label** — friendly name
+   - **Label** — friendly name e.g. "Acme Corp"
    - **API Key** — your Nova Poshta API key
    - **Sender Identifier** — your phone number (used to detect outgoing packages)
 4. Click **Add API Key**
