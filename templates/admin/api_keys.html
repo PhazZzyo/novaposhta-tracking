@@ -3,25 +3,41 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-key me-2"></i>{{ t('api_keys') }}</h2>
-    <a href="{{ url_for('admin_add_api_key') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> {{ t('add_api_key') }}</a>
+    <div class="d-flex gap-2">
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-gear"></i> Tools
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><h6 class="dropdown-header">{{ t('import_api_keys') }}</h6></li>
+                <li>
+                    <form action="{{ url_for('admin_import_api_keys') }}" method="POST" enctype="multipart/form-data" class="px-3 py-2">
+                        <input type="file" name="file" accept=".json" class="form-control form-control-sm mb-2" required>
+                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-upload"></i> {{ t('import_api_keys') }}</button>
+                    </form>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{{ url_for('admin_export_api_keys') }}"><i class="bi bi-download me-2"></i>{{ t('export_api_keys') }}</a></li>
+            </ul>
+        </div>
+        <a href="{{ url_for('admin_add_api_key') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> {{ t('add_api_key') }}</a>
+    </div>
 </div>
 <div class="card">
     {% if api_keys %}
     <div class="table-responsive">
         <table class="table table-hover mb-0">
-            <thead><tr>
-                <th>{{ t('label') }}</th><th>API Key</th><th>{{ t('sender_identifier') }}</th>
-                <th>{{ t('auto_sync') }}</th><th>{{ t('status') }}</th><th>{{ t('last_sync') }}</th><th>{{ t('actions') }}</th>
-            </tr></thead>
+            <thead><tr><th>{{ t('label') }}</th><th>API Key</th><th>{{ t('sender_identifier') }}</th><th>Counterparty</th><th>{{ t('auto_sync') }}</th><th>{{ t('status') }}</th><th>{{ t('last_sync') }}</th><th>{{ t('actions') }}</th></tr></thead>
             <tbody>
             {% for key in api_keys %}
             <tr>
                 <td><strong>{{ key.label }}</strong></td>
                 <td><code>{{ key.api_key[:8] }}...{{ key.api_key[-4:] }}</code></td>
                 <td>{{ key.sender_identifier or '-' }}</td>
+                <td>{% if key.counterparty_ref %}<i class="bi bi-check-circle text-success"></i>{% else %}-{% endif %}</td>
                 <td>{% if key.auto_sync %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
                 <td>{% if key.is_active %}<span class="badge bg-success">{{ t('active') }}</span>{% else %}<span class="badge bg-danger">{{ t('inactive') }}</span>{% endif %}</td>
-                <td>{{ key.last_sync.strftime('%d.%m.%Y %H:%M') if key.last_sync else t('never') }}</td>
+                <td>{{ key.last_sync.strftime('%d.%m %H:%M') if key.last_sync else t('never') }}</td>
                 <td><a href="{{ url_for('admin_edit_api_key', key_id=key.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> {{ t('edit') }}</a></td>
             </tr>
             {% endfor %}
@@ -29,9 +45,7 @@
         </table>
     </div>
     {% else %}
-    <div class="card-body text-center py-5">
-        <i class="bi bi-key text-muted" style="font-size:3rem"></i>
-        <p class="text-muted mt-3">{{ t('no_api_keys') }}</p>
+    <div class="card-body text-center py-5"><i class="bi bi-key text-muted" style="font-size:3rem"></i><p class="text-muted mt-3">{{ t('no_api_keys') }}</p>
         <a href="{{ url_for('admin_add_api_key') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> {{ t('add_api_key') }}</a>
     </div>
     {% endif %}
