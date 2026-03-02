@@ -265,6 +265,22 @@ class NovaPoshtaAPI:
         })
 
     
+    
+    def get_incoming_documents(self, phone):
+        """Get INCOMING packages by phone number (10 digits, no country code)"""
+        if not phone:
+            return [], {}
+        # Ensure phone is 10 digits (remove 380 prefix if present)
+        phone = str(phone).strip().replace('+', '')
+        if phone.startswith('380'):
+            phone = phone[2:]  # Remove country code
+        if len(phone) != 10:
+            raise Exception(f"Phone must be 10 digits, got: {phone}")
+        
+        return self._post('InternetDocument', 'getIncomingDocumentsByPhone', {
+            'Phone': phone
+        })
+
     def get_status_documents(self, tracking_numbers):
         """Get CURRENT status for packages by tracking numbers"""
         if not tracking_numbers:
@@ -369,7 +385,82 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
             db.session.add(log)
             db.session.commit()
 
-    # STEP 2: UPDATE STATUS FOR ALL ACTIVE PACKAGES
+    
+    # STEP 2: FETCH INCOMING PACKAGES (if phone configured)
+    if direction in ['incoming', 'both'] and api_key_obj.sender_identifier:
+        try:
+            incoming_docs, full_response = api.get_incoming_documents(api_key_obj.sender_identifier)
+            
+            # Process nested response structure
+            fetched, created = 0, 0
+            for result_group in incoming_docs:
+                for doc in result_group.get('result', []):
+                    tn = doc.get('Number')
+                    if not tn:
+                        continue
+                    
+                    fetched += 1
+                    pkg = Package.query.filter_by(tracking_number=tn).first()
+                    if not pkg:
+                        pkg = Package(api_key_id=api_key_obj.id, tracking_number=tn)
+                        db.session.add(pkg)
+                        created += 1
+
+                    # Set data from incoming document
+                    pkg.direction = 'incoming'
+                    pkg.sender_city = doc.get('CitySenderDescription')
+                    pkg.sender_name = doc.get('SenderName')
+                    pkg.sender_phone = doc.get('PhoneSender')
+                    pkg.recipient_city = doc.get('CityRecipientDescription')
+                    pkg.recipient_name = doc.get('RecipientName')
+                    pkg.recipient_phone = doc.get('PhoneRecipient')
+                    pkg.recipient_warehouse = doc.get('RecipientAddressDescription')
+                    
+                    # Extract warehouse number from settlement data
+                    settlement_data = doc.get('SettlmentAddressData', {})
+                    pkg.recipient_warehouse_number = settlement_data.get('RecipientWarehouseNumber')
+                    
+                    pkg.recipient_contact = doc.get('RecipientFullName')
+                    pkg.status = doc.get('TrackingStatusName')
+                    pkg.status_code = str(doc.get('TrackingStatusCode', ''))
+                    pkg.date_created = _parse_dt(doc.get('DateTime'))
+                    pkg.planned_delivery_date = _parse_dt(doc.get('ScheduledDeliveryDate'))
+                    if pkg.planned_delivery_date:
+                        pkg.planned_delivery_date = pkg.planned_delivery_date.date()
+                    pkg.actual_delivery_date = _parse_dt(doc.get('ReceivingDateTime'))
+                    pkg.package_cost = float(doc.get('Cost') or 0)
+                    pkg.shipment_cost = float(doc.get('DocumentCost') or 0)
+                    pkg.weight = float(doc.get('DocumentWeight') or 0)
+                    pkg.package_count = int(doc.get('SeatsAmount') or 1)
+                    pkg.description = doc.get('CargoDescription')
+                    pkg.is_delivered = is_delivered(pkg.status_code)
+                    pkg.raw_data = doc
+
+            db.session.commit()
+            
+            if fetched > 0:
+                summary = f'In: {fetched}📦 ({created}🆕)'
+                results.append(summary)
+                
+                log = SyncLog(
+                    api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
+                    sync_direction='incoming', packages_fetched=fetched,
+                    packages_created=created, packages_updated=0,
+                    status='success', sync_summary=summary, api_response=full_response
+                )
+                db.session.add(log)
+                db.session.commit()
+        except Exception as e:
+            summary = f'In: ❌ {str(e)[:50]}'
+            results.append(summary)
+            log = SyncLog(api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
+                          sync_direction='incoming', status='error', 
+                          error_message=str(e), sync_summary=summary)
+            db.session.add(log)
+            db.session.commit()
+
+
+    # STEP 3: UPDATE STATUS FOR ALL ACTIVE PACKAGES
     try:
         # Get all active packages for this API key (not delivered yet)
         active_packages = Package.query.filter_by(
@@ -517,8 +608,20 @@ def dashboard():
     if api_ids:
         all_pkgs = Package.query.filter(Package.api_key_id.in_(api_ids))
         total = all_pkgs.count()
-        delivering = all_pkgs.filter(Package.is_delivered == False, ~Package.status_code.in_(['7','8'])).count()
-        ready = all_pkgs.filter(Package.status_code.in_(['7','8'])).count()
+        
+        # Delivering: active packages, excluding ready incoming
+        delivering = all_pkgs.filter(
+            Package.is_delivered == False,
+            ~db.and_(Package.direction == 'incoming', Package.status_code.in_(['7','8']))
+        ).count()
+        
+        # Ready: ONLY incoming packages with status 7-8
+        ready = all_pkgs.filter(
+            Package.direction == 'incoming',
+            Package.status_code.in_(['7','8'])
+        ).count()
+        
+        # Delivered: status 2, 9, 10, 11
         delivered = all_pkgs.filter(Package.is_delivered == True).count()
     else:
         total = delivering = ready = delivered = 0
@@ -545,10 +648,19 @@ def packages():
 
     # Filter by type
     if filter_type == 'delivering':
-        q = q.filter(Package.is_delivered == False, Package.status_code != '9')
+        # Active packages, excluding ready incoming
+        q = q.filter(
+            Package.is_delivered == False,
+            ~db.and_(Package.direction == 'incoming', Package.status_code.in_(['7','8']))
+        )
     elif filter_type == 'ready':
-        q = q.filter(Package.status_code == '9')
+        # ONLY incoming packages with status 7-8
+        q = q.filter(
+            Package.direction == 'incoming',
+            Package.status_code.in_(['7','8'])
+        )
     elif filter_type == 'delivered':
+        # Status 2, 9, 10, 11
         q = q.filter(Package.is_delivered == True)
     # 'all' shows everything - no additional filter
 
