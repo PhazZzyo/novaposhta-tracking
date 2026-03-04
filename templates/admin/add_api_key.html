@@ -12,7 +12,7 @@
         <input type="text" class="form-control" name="api_key" required placeholder="Your Nova Poshta API key">
         <small class="text-muted">Get from <a href="https://devcenter.novaposhta.ua/" target="_blank">Nova Poshta Portal</a></small></div>
     <div class="mb-3"><label class="form-label">{{ t('sender_identifier') }}</label>
-        <input type="text" class="form-control" name="sender_identifier" placeholder="e.g., 380975850022">
+        <input type="text" class="form-control" name="sender_identifier" pattern="0[0-9]{9}" placeholder="0975850022" title="10 digits starting with 0">
         <small class="text-muted">Phone or name for outgoing package detection</small></div>
     <div class="mb-3"><label class="form-label">Counterparty Reference</label>
         <input type="text" class="form-control" name="counterparty_ref" placeholder="UUID from Nova Poshta">

@@ -11,7 +11,7 @@
         <input type="text" class="form-control" value="{{ api_key.api_key[:8] }}...{{ api_key.api_key[-4:] }}" disabled>
         <small class="text-muted">Cannot be changed. Add new key if needed.</small></div>
     <div class="mb-3"><label class="form-label">{{ t('sender_identifier') }}</label>
-        <input type="text" class="form-control" name="sender_identifier" value="{{ api_key.sender_identifier or '' }}"></div>
+        <input type="text" class="form-control" name="sender_identifier" pattern="0[0-9]{9}" value="{{ api_key.sender_identifier or '' }}" placeholder="0975850022" title="10 digits starting with 0"></div>
     <div class="mb-3"><label class="form-label">Counterparty Reference</label>
         <input type="text" class="form-control" name="counterparty_ref" value="{{ api_key.counterparty_ref or '' }}">
         <small class="text-muted">For tracking <strong>incoming</strong> packages</small></div>

@@ -267,15 +267,15 @@ class NovaPoshtaAPI:
     
     
     def get_incoming_documents(self, phone):
-        """Get INCOMING packages by phone number (10 digits, no country code)"""
+        """Get INCOMING packages by phone number (10 digits: 0XXXXXXXXX)"""
         if not phone:
             return [], {}
-        # Ensure phone is 10 digits (remove 380 prefix if present)
-        phone = str(phone).strip().replace('+', '')
-        if phone.startswith('380'):
-            phone = phone[2:]  # Remove country code
-        if len(phone) != 10:
-            raise Exception(f"Phone must be 10 digits, got: {phone}")
+        
+        phone = str(phone).strip()
+        
+        # Validate: must be exactly 10 digits starting with 0
+        if len(phone) != 10 or not phone.startswith('0') or not phone.isdigit():
+            raise Exception(f"Phone must be 10 digits (0XXXXXXXXX), got: {phone}")
         
         return self._post('InternetDocument', 'getIncomingDocumentsByPhone', {
             'Phone': phone
