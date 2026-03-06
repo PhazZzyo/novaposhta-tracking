@@ -1,0 +1,163 @@
+<!-- Shared API Key Form -->
+<form method="POST">
+    <div class="mb-3">
+        <label class="form-label">Label *</label>
+        <input type="text" class="form-control" name="label" value="{{ api_key.label if api_key else '' }}" required>
+    </div>
+
+    {% if not api_key %}
+    <!-- Only show API key input when adding new -->
+    <div class="mb-3">
+        <label class="form-label">API Key *</label>
+        <input type="text" class="form-control" name="api_key" required
+            placeholder="Your 32-character Nova Poshta API key">
+        <small class="text-muted">Get from <a href="https://devcenter.novaposhta.ua/" target="_blank">Nova Poshta
+                Portal</a></small>
+    </div>
+    {% else %}
+    <!-- Show masked API key when editing -->
+    <div class="mb-3">
+        <label class="form-label">API Key</label>
+        <input type="text" class="form-control" value="{{ api_key.api_key[:8] }}...{{ api_key.api_key[-4:] }}" disabled>
+        <small class="text-muted">Cannot be changed. Add new key if needed.</small>
+    </div>
+
+    <!-- Quick setup hint -->
+    <div class="alert alert-info">
+        <i class="bi bi-lightbulb"></i> <strong>Quick Setup:</strong>
+        Click "Fetch UUIDs" button below to auto-fill all fields from Nova Poshta.
+    </div>
+    {% endif %}
+
+    <div class="mb-3">
+        <label class="form-label">Sender Identifier (Phone) *</label>
+        <input type="tel" class="form-control" name="sender_identifier" pattern="0[0-9]{9}" maxlength="10"
+            value="{{ api_key.sender_identifier if api_key else '' }}" placeholder="0931234567"
+            title="10 digits starting with 0" required oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+        <small class="text-muted">Phone number (10 digits only). Auto-filled from UUID fetch.</small>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Counterparty Reference (UUID)</label>
+        <div class="input-group">
+            <input type="text" class="form-control" name="counterparty_ref" id="counterparty_ref"
+                value="{{ api_key.counterparty_ref if api_key else '' }}" placeholder="Click button to auto-fill →">
+            <button type="button" class="btn btn-outline-primary" id="fetchUuidsBtn" {% if not api_key %}disabled{%
+                endif %}>
+                <i class="bi bi-download"></i> Fetch UUIDs
+            </button>
+        </div>
+        <small class="text-muted">
+            {% if not api_key %}
+            Enter API Key above first, then click to fetch UUIDs
+            {% else %}
+            Auto-fetch all sender UUIDs for package creation
+            {% endif %}
+        </small>
+    </div>
+
+    <!-- Hidden UUID fields -->
+    <input type="hidden" name="sender_city_ref" id="sender_city_ref"
+        value="{{ api_key.sender_city_ref if api_key else '' }}">
+    <input type="hidden" name="sender_warehouse_ref" id="sender_warehouse_ref"
+        value="{{ api_key.sender_warehouse_ref if api_key else '' }}">
+    <input type="hidden" name="sender_contact_ref" id="sender_contact_ref"
+        value="{{ api_key.sender_contact_ref if api_key else '' }}">
+
+    <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" id="auto_sync" name="auto_sync" {% if not api_key or
+            api_key.auto_sync %}checked{% endif %}>
+        <label class="form-check-label" for="auto_sync">Auto Sync (every 30 min, 9-18h)</label>
+    </div>
+
+    {% if api_key %}
+    <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if api_key.is_active
+            %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Active</label>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> {{ 'Save Changes' if api_key else 'Add API Key' }}
+        </button>
+        <a href="{{ url_for('admin_api_keys') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+
+<!-- Script for ADD page only -->
+{% if not api_key %}
+<script>
+    // Enable fetch button when API key is entered
+    const apiKeyInput = document.querySelector('input[name="api_key"]');
+    const fetchBtn = document.getElementById('fetchUuidsBtn');
+
+    if (apiKeyInput && fetchBtn) {
+        apiKeyInput.addEventListener('input', function () {
+            fetchBtn.disabled = this.value.length < 32;
+        });
+    }
+</script>
+{% endif %}
+
+<!-- Script for BOTH pages -->
+<script>
+    document.getElementById('fetchUuidsBtn')?.addEventListener('click', function () {
+        // Get API key from different sources
+        let apiKey;
+        {% if api_key %}
+        apiKey = '{{ api_key.api_key }}';
+        {% else %}
+        apiKey = document.querySelector('input[name="api_key"]').value.trim();
+        if (!apiKey || apiKey.length !== 32) {
+            alert('Please enter a valid 32-character API key first');
+            return;
+        }
+        {% endif %}
+
+        const btn = this;
+        const originalHtml = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Fetching...';
+
+        fetch('/api/fetch-sender-uuids', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('counterparty_ref').value = data.counterparty_ref;
+                    document.getElementById('sender_city_ref').value = data.city_ref || '';
+                    document.getElementById('sender_warehouse_ref').value = data.warehouse_ref || '';
+                    document.getElementById('sender_contact_ref').value = data.contact_ref || '';
+
+                    if (data.phone) {
+                        document.querySelector('input[name="sender_identifier"]').value = data.phone;
+                    }
+
+                    if (data.description) {
+                        const labelInput = document.querySelector('input[name="label"]');
+                        if (labelInput && !labelInput.value) {
+                            labelInput.value = data.description;
+                        }
+                    }
+
+                    alert('✅ UUIDs Fetched!\n\nCounterparty: ' + data.counterparty_ref +
+                        (data.phone ? '\nPhone: ' + data.phone : '') +
+                        (data.description ? '\nName: ' + data.description : '') +
+                        '\n\nReview and Save.');
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            })
+            .catch(err => alert('❌ Failed: ' + err.message))
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+    });
+</script>

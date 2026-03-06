@@ -13,6 +13,9 @@
         {% endif %}
     </h2>
     <div class="d-flex gap-2">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPackageModal">
+            <i class="bi bi-plus-circle"></i> Create Package
+        </button>
         <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterModal">
             <i class="bi bi-funnel"></i> {{ t('filters') }}
         </button>
@@ -40,6 +43,7 @@
                     <th>{{ t('recipient') }}</th>
                     <th>{{ t('status') }}</th>
                     <th>{{ t('created') }}</th>
+                    <th>{{ t('author') }}</th>                    
                     <th class="text-end">{{ t('actions') }}</th>
                 </tr>
             </thead>
@@ -74,6 +78,20 @@
                     <td>{% if pkg.date_created %}{{ pkg.date_created.strftime('%d.%m.%Y') }}<br><small
                             class="text-muted">{{ pkg.date_created.strftime('%H:%M') }}</small>{% else %}-{% endif %}
                     </td>
+                    
+                    <!-- ✅ ADD AUTHOR COLUMN HERE -->
+                    <td>
+                        {% if pkg.author %}
+                            {% if pkg.author == 'api' or pkg.author == 'web' %}
+                                <span class="badge bg-secondary">{{ pkg.author }}</span>
+                            {% else %}
+                                <span class="badge bg-primary">{{ pkg.author }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary">web</span>
+                        {% endif %}
+                    </td>
+                    
                     <td class="text-end text-nowrap">
                         <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
                             class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}"><i
@@ -223,5 +241,6 @@
 
 {% block extra_js %}
 <script>function loadPackage(id) { const b = document.getElementById('pkgModalBody'); b.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>'; fetch(`/package/${id}`).then(r => r.text()).then(h => { b.innerHTML = h; }).catch(e => { b.innerHTML = `<div class="alert alert-danger">${e}</div>`; }); }</script>
+{% include 'partials/create_package_modal.html' %}
 {% endblock %}
 {% endblock %}

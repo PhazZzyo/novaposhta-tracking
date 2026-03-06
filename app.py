@@ -14,7 +14,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import desc
+from sqlalchemy import desc, and_
 import time
 
 app = Flask(__name__)
@@ -80,6 +80,7 @@ TRANSLATIONS = {
         'days_1': 'Last 24 hours', 'days_5': 'Last 5 days', 'days_7': 'Last 7 days',
         'days_14': 'Last 14 days', 'days_30': 'Last 30 days', 'all_time': 'All time',
         'sync_all': 'Sync All', 'import_api_keys': 'Import', 'export_api_keys': 'Export',
+        'author': 'Author',
     },
     'uk': {
         'dashboard': 'Головна', 'packages': 'Посилки', 'settings': 'Налаштування',
@@ -116,6 +117,7 @@ TRANSLATIONS = {
         'days_1': '24 години', 'days_5': '5 днів', 'days_7': '7 днів',
         'days_14': '14 днів', 'days_30': '30 днів', 'all_time': 'Весь час',
         'sync_all': 'Синхр. все', 'import_api_keys': 'Імпорт', 'export_api_keys': 'Експорт',
+        'author': 'Автор',
     }
 }
 
@@ -155,6 +157,9 @@ class APIKey(db.Model):
     label = db.Column(db.String(100), nullable=False)
     api_key = db.Column(db.String(255), nullable=False, unique=True)
     sender_identifier = db.Column(db.String(200))
+    sender_city_ref = db.Column(db.String(36))
+    sender_warehouse_ref = db.Column(db.String(36))
+    sender_contact_ref = db.Column(db.String(36))
     counterparty_ref = db.Column(db.String(255))
     is_active = db.Column(db.Boolean, default=True)
     auto_sync = db.Column(db.Boolean, default=True)
@@ -200,6 +205,37 @@ class Package(db.Model):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     raw_data = db.Column(db.JSON)
     api_key = db.relationship('APIKey', back_populates='packages')
+
+class Client(db.Model):
+    __tablename__ = 'clients'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    phone = db.Column(db.String(10), nullable=False)
+    city = db.Column(db.String(200))
+    city_ref = db.Column(db.String(36))
+    warehouse = db.Column(db.String(300))
+    warehouse_ref = db.Column(db.String(36))
+    warehouse_number = db.Column(db.String(10))
+    contact_person = db.Column(db.String(200))
+    notes = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used = db.Column(db.DateTime)
+
+class PackageScheme(db.Model):
+    __tablename__ = 'package_schemes'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    client_id = db.Column(db.Integer, db.ForeignKey('clients.id'))
+    cargo_type = db.Column(db.String(50))
+    weight = db.Column(db.Numeric(10, 3))
+    seats_amount = db.Column(db.Integer, default=1)
+    package_cost = db.Column(db.Numeric(10, 2))
+    description_default = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    usage_count = db.Column(db.Integer, default=0)
 
 class SyncLog(db.Model):
     __tablename__ = 'sync_logs'
@@ -281,6 +317,44 @@ class NovaPoshtaAPI:
             'Phone': phone
         })
 
+    def create_internet_document(self, sender_data, recipient_data, package_data):
+        """Create package via Nova Poshta API - requires UUIDs for all refs"""
+        return self._post('InternetDocument', 'save', {
+            'PayerType': package_data.get('payer_type', 'Recipient'),
+            'PaymentMethod': package_data.get('payment_method', 'Cash'),
+            'DateTime': datetime.now().strftime('%d.%m.%Y'),
+            'CargoType': package_data.get('cargo_type', 'Parcel'),
+            'Weight': str(package_data['weight']),
+            'ServiceType': 'WarehouseWarehouse',
+            'SeatsAmount': str(package_data.get('seats', 1)),
+            'Description': package_data['description'],
+            'Cost': str(package_data['cost']),
+            'CitySender': sender_data['city_ref'],
+            'Sender': sender_data['counterparty_ref'],
+            'SenderAddress': sender_data['warehouse_ref'],
+            'ContactSender': sender_data['contact_ref'],
+            'SendersPhone': sender_data['phone'],
+            'CityRecipient': recipient_data['city_ref'],
+            'RecipientName': recipient_data['name'],
+            'RecipientAddress': recipient_data['warehouse_ref'],
+            'ContactRecipient': recipient_data.get('contact', recipient_data['name']),
+            'RecipientsPhone': recipient_data['phone']
+        })
+    
+    def search_cities(self, query):
+        """Search cities by name"""
+        return self._post('Address', 'getCities', {
+            'FindByString': query,
+            'Limit': '20'
+        })
+    
+    def get_warehouses(self, city_ref):
+        """Get warehouses in city"""
+        return self._post('Address', 'getWarehouses', {
+            'CityRef': city_ref,
+            'Limit': '100'
+        })
+
     def get_status_documents(self, tracking_numbers):
         """Get CURRENT status for packages by tracking numbers"""
         if not tracking_numbers:
@@ -340,6 +414,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
                     created += 1
 
                 # Set initial data from document list
+                pkg.author = 'api'
                 pkg.direction = 'outgoing'
                 pkg.sender_city = doc.get('CitySenderDescription')
                 pkg.sender_name = doc.get('SenderDescription')
@@ -639,11 +714,16 @@ def packages():
     view = request.args.get('view', current_user.view_mode)
     filter_type = request.args.get('filter', 'all')
 
+    # Build API keys list
     if current_user.role == 'admin':
-        api_ids = [k.id for k in APIKey.query.filter_by(is_active=True).all()]
+        available_keys = APIKey.query.filter_by(is_active=True).all()
+        api_ids = [k.id for k in available_keys]
     else:
-        api_ids = [tr.api_key_id for tr in current_user.tracked_apis if tr.api_key.is_active]
+        tracked = UserAPITracking.query.filter_by(user_id=current_user.id).all()
+        api_ids = [t.api_key_id for t in tracked]
+        available_keys = APIKey.query.filter(APIKey.id.in_(api_ids), APIKey.is_active == True).all()
 
+    # Build query
     q = Package.query.filter(Package.api_key_id.in_(api_ids)) if api_ids else Package.query.filter_by(id=-1)
 
     # Filter by type
@@ -681,9 +761,16 @@ def packages():
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     available_apis = APIKey.query.filter(APIKey.id.in_(api_ids)).all() if api_ids else []
 
-    return render_template('packages.html', packages=pagination.items,
-                           pagination=pagination, available_apis=available_apis,
-                           view_mode=view, current_filter=filter_type)
+    print(f"DEBUG: api_ids = {api_ids}")
+    print(f"DEBUG: packages count = {len(pagination.items)}")
+    print(f"DEBUG: query = {q}")
+
+    return render_template('packages.html',
+                        packages=pagination.items,
+                        pagination=pagination,  # ✅ Now it's defined
+                        api_keys=available_keys,
+                        view_mode=view,
+                        current_filter=filter_type)
 
 @app.route('/package/<int:package_id>')
 @login_required
@@ -845,6 +932,9 @@ def admin_edit_api_key(key_id):
         key.counterparty_ref = request.form.get('counterparty_ref')
         key.auto_sync = bool(request.form.get('auto_sync'))
         key.is_active = bool(request.form.get('is_active'))
+        api_key_obj.sender_city_ref = request.form.get('sender_city_ref')
+        api_key_obj.sender_warehouse_ref = request.form.get('sender_warehouse_ref')
+        api_key_obj.sender_contact_ref = request.form.get('sender_contact_ref')
         db.session.commit()
         flash(f'API key "{key.label}" updated.', 'success')
         return redirect(url_for('admin_api_keys'))
@@ -932,6 +1022,299 @@ def admin_log():
 def admin_log_details(log_id):
     log = SyncLog.query.get_or_404(log_id)
     return render_template('admin/log_details.html', log=log)
+
+# ============================================================================
+# PACKAGE CREATION ROUTES
+# ============================================================================
+
+@app.route('/package/create', methods=['POST'])
+@login_required
+def create_package():
+    """Create new package via Nova Poshta API or save as draft"""
+    try:
+        data = request.json
+        action = data.get('action', 'create')  # 'create' or 'draft'
+        
+        # Validate API key access
+        api_key_id = int(data['api_key_id'])
+        api_key_obj = APIKey.query.get_or_404(api_key_id)
+        
+        if current_user.role != 'admin':
+            # Check if user has access to this API key
+            tracked = UserAPITracking.query.filter_by(
+                user_id=current_user.id,
+                api_key_id=api_key_id
+            ).first()
+            if not tracked:
+                return jsonify({'success': False, 'error': 'Access denied'}), 403
+        
+        # Save client if requested
+        if data.get('save_client'):
+            existing_client = Client.query.filter_by(
+                phone=data['recipient_phone'],
+                created_by=current_user.id
+            ).first()
+            
+            if existing_client:
+                # Update existing
+                existing_client.name = data['recipient_name']
+                existing_client.city = data.get('recipient_city')
+                existing_client.city_ref = data.get('city_recipient_ref')
+                existing_client.warehouse = data.get('recipient_warehouse')
+                existing_client.warehouse_ref = data.get('recipient_address_ref')
+                existing_client.contact_person = data.get('recipient_contact')
+                existing_client.last_used = datetime.utcnow()
+            else:
+                # Create new
+                new_client = Client(
+                    name=data['recipient_name'],
+                    phone=data['recipient_phone'],
+                    city=data.get('recipient_city'),
+                    city_ref=data.get('city_recipient_ref'),
+                    warehouse=data.get('recipient_warehouse'),
+                    warehouse_ref=data.get('recipient_address_ref'),
+                    contact_person=data.get('recipient_contact'),
+                    created_by=current_user.id
+                )
+                db.session.add(new_client)
+        
+        # Create package record (starts as draft)
+        pkg = Package(
+            api_key_id=api_key_id,
+            tracking_number=f'DRAFT_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}',
+            direction='outgoing',
+            author=current_user.username,
+            draft_status='draft' if action == 'draft' else 'pending',
+            draft_data=json.dumps(data),
+            recipient_name=data['recipient_name'],
+            recipient_phone=data['recipient_phone'],
+            recipient_city=data.get('recipient_city'),
+            weight=float(data.get('weight', 0)),
+            package_cost=float(data.get('cost', 0)),
+            description=data.get('description', ''),
+            date_created=datetime.utcnow()
+        )
+        db.session.add(pkg)
+        db.session.commit()
+        
+        # If saving as draft, stop here
+        if action == 'draft':
+            return jsonify({
+                'success': True,
+                'message': t('Saved as draft'),
+                'draft_id': pkg.id
+            })
+        
+        # Try to create via Nova Poshta API
+        try:
+            api = NovaPoshtaAPI(api_key_obj.api_key)
+            
+            # Prepare data for API
+            sender_data = {
+                'city_ref': data['city_sender_ref'],
+                'counterparty_ref': data['sender_ref'],
+                'warehouse_ref': data['sender_address_ref'],
+                'contact_ref': data['contact_sender_ref'],
+                'phone': data['sender_phone']
+            }
+            
+            recipient_data = {
+                'city_ref': data['city_recipient_ref'],
+                'name': data['recipient_name'],
+                'warehouse_ref': data['recipient_address_ref'],
+                'contact': data.get('recipient_contact', data['recipient_name']),
+                'phone': data['recipient_phone']
+            }
+            
+            package_data = {
+                'weight': data['weight'],
+                'cost': data['cost'],
+                'description': data['description'],
+                'seats': data.get('seats', 1),
+                'cargo_type': data.get('cargo_type', 'Parcel'),
+                'payer_type': data.get('payer_type', 'Recipient'),
+                'payment_method': data.get('payment_method', 'Cash')
+            }
+            
+            result, response = api.create_internet_document(
+                sender_data, recipient_data, package_data
+            )
+            
+            if result and len(result) > 0:
+                # Success!
+                doc = result[0]
+                pkg.tracking_number = doc.get('IntDocNumber')
+                pkg.draft_status = 'sent'
+                pkg.status = 'Створено'
+                pkg.status_code = '1'
+                pkg.raw_data = doc
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Package created! TTN: {pkg.tracking_number}',
+                    'tracking_number': pkg.tracking_number,
+                    'package_id': pkg.id
+                })
+            else:
+                raise Exception('No document returned from API')
+        
+        except Exception as api_error:
+            # API failed - save as failed draft
+            pkg.draft_status = 'failed'
+            error_data = json.loads(pkg.draft_data)
+            error_data['api_error'] = str(api_error)
+            pkg.draft_data = json.dumps(error_data)
+            db.session.commit()
+            
+            return jsonify({
+                'success': False,
+                'error': str(api_error),
+                'draft_id': pkg.id,
+                'message': f'API Error: {str(api_error)}. Saved as draft.'
+            })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/search-cities')
+@login_required
+def search_cities_api():
+    """Search cities for autocomplete"""
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify([])
+    
+    try:
+        api_key = APIKey.query.filter_by(is_active=True).first()
+        if not api_key:
+            return jsonify({'error': 'No API key'}), 400
+        
+        api = NovaPoshtaAPI(api_key.api_key)
+        cities, _ = api.search_cities(query)
+        
+        return jsonify([{
+            'ref': city['Ref'],
+            'name': city['Description']
+        } for city in cities[:10]])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/warehouses/<city_ref>')
+@login_required  
+def get_warehouses_api(city_ref):
+    """Get warehouses for selected city"""
+    try:
+        api_key = APIKey.query.filter_by(is_active=True).first()
+        if not api_key:
+            return jsonify({'error': 'No API key'}), 400
+        
+        api = NovaPoshtaAPI(api_key.api_key)
+        warehouses, _ = api.get_warehouses(city_ref)
+        
+        return jsonify([{
+            'ref': wh['Ref'],
+            'description': wh['Description'],
+            'number': wh.get('Number', '')
+        } for wh in warehouses])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/clients/recent')
+@login_required
+def get_recent_clients():
+    """Get user's recent clients for quick selection"""
+    clients = Client.query.filter_by(
+        created_by=current_user.id
+    ).order_by(
+        Client.last_used.desc().nullslast(),
+        Client.created_at.desc()
+    ).limit(20).all()
+    
+    return jsonify([{
+        'id': c.id,
+        'name': c.name,
+        'phone': c.phone,
+        'city': c.city,
+        'city_ref': c.city_ref,
+        'warehouse': c.warehouse,
+        'warehouse_ref': c.warehouse_ref,
+        'contact_person': c.contact_person
+    } for c in clients])
+
+@app.route('/api/fetch-sender-uuids', methods=['POST'])
+@role_required('admin')
+def fetch_sender_uuids():
+    """Auto-fetch sender UUIDs from Nova Poshta API"""
+    try:
+        data = request.json
+        api_key = data['api_key']
+        
+        api = NovaPoshtaAPI(api_key)
+        
+        # Get sender counterparty
+        counterparties, _ = api._post('Counterparty', 'getCounterparties', {
+            'CounterpartyProperty': 'Sender',
+            'Page': '1'
+        })
+        
+        if not counterparties:
+            return jsonify({'success': False, 'error': 'No sender found'})
+        
+        cp = counterparties[0]
+        counterparty_ref = cp['Ref']
+        
+        # Get contact persons for this counterparty
+        contacts, _ = api._post('Counterparty', 'getCounterpartyContactPersons', {
+            'Ref': counterparty_ref,
+            'Page': '1'
+        })
+
+        contact_ref = None
+        contact_description = None
+        if contacts and len(contacts) > 0:
+            contact_ref = contacts[0]['Ref']
+            contact_description = contacts[0].get('Description', '')  # ← For Label
+        
+        # Get addresses/warehouses
+        addresses, _ = api._post('Counterparty', 'getCounterpartyAddresses', {
+            'Ref': counterparty_ref,
+            'CounterpartyProperty': 'Sender'
+        })
+        
+        warehouse_ref = addresses[0]['Ref'] if addresses else None
+        city_ref = addresses[0].get('CityRef') if addresses else None
+        
+        # Get phone from contact person
+        phone = None
+        if contacts and len(contacts) > 0:
+            # Phones is a string like "380931234567" or array
+            phones_data = contacts[0].get('Phones', '')
+            if phones_data:
+                # Convert to 10-digit format
+                phone_str = str(phones_data).strip().replace('+', '')
+                if phone_str.startswith('380') and len(phone_str) == 12:
+                    phone = '0' + phone_str[3:]  # 380931234567 → 0931234567
+                elif len(phone_str) == 10:
+                    phone = phone_str
+
+        return jsonify({
+            'success': True,
+            'counterparty_ref': counterparty_ref,
+            'city_ref': city_ref,
+            'warehouse_ref': warehouse_ref,
+            'contact_ref': contact_ref,
+            'phone': phone,
+            'description': contact_description or cp.get('Description', ''),  # ← Use contact description first
+            'city_description': addresses[0].get('CityDescription', '') if addresses else ''
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 # Init
 def init_db():

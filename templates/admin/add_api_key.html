@@ -1,29 +1,14 @@
 {% extends "base.html" %}
-{% block title %}{{ t('add_api_key') }} - Admin{% endblock %}
+{% block title %}Add API Key - Admin{% endblock %}
 {% block content %}
-<h2 class="mb-4"><i class="bi bi-key me-2"></i>{{ t('add_api_key') }}</h2>
-<div class="row"><div class="col-md-7">
-<div class="card"><div class="card-body">
-<form method="POST">
-    <div class="mb-3"><label class="form-label">{{ t('label') }} *</label>
-        <input type="text" class="form-control" name="label" required placeholder="e.g., Acme Corp">
-        <small class="text-muted">Human-readable name</small></div>
-    <div class="mb-3"><label class="form-label">API Key *</label>
-        <input type="text" class="form-control" name="api_key" required placeholder="Your Nova Poshta API key">
-        <small class="text-muted">Get from <a href="https://devcenter.novaposhta.ua/" target="_blank">Nova Poshta Portal</a></small></div>
-    <div class="mb-3"><label class="form-label">{{ t('sender_identifier') }}</label>
-        <input type="text" class="form-control" name="sender_identifier" pattern="0[0-9]{9}" placeholder="0975850022" title="10 digits starting with 0">
-        <small class="text-muted">Phone or name for outgoing package detection</small></div>
-    <div class="mb-3"><label class="form-label">Counterparty Reference</label>
-        <input type="text" class="form-control" name="counterparty_ref" placeholder="UUID from Nova Poshta">
-        <small class="text-muted">For tracking <strong>incoming</strong> packages. Get UUID from Nova Poshta API settings.</small></div>
-    <div class="mb-3 form-check">
-        <input type="checkbox" class="form-check-input" id="auto_sync" name="auto_sync" checked>
-        <label class="form-check-label" for="auto_sync">{{ t('auto_sync') }} (every 30 min, 9-18h)</label></div>
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> {{ t('add_api_key') }}</button>
-        <a href="{{ url_for('admin_api_keys') }}" class="btn btn-secondary">{{ t('cancel') }}</a>
+<h2 class="mb-4"><i class="bi bi-key me-2"></i>Add API Key</h2>
+<div class="row">
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-body">
+                {% include 'admin/partials/api_key_form.html' %}
+            </div>
+        </div>
     </div>
-</form>
-</div></div></div></div>
+</div>
 {% endblock %}
