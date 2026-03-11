@@ -1,5 +1,5 @@
 """
-Nova Poshta Package Tracking Web Application v1.1
+Nova Poshta Package Tracking Web Application v1.2
 Complete with: Import/Export, Unified sync, Incoming packages, Timezone handling
 """
 
@@ -157,10 +157,12 @@ class APIKey(db.Model):
     label = db.Column(db.String(100), nullable=False)
     api_key = db.Column(db.String(255), nullable=False, unique=True)
     sender_identifier = db.Column(db.String(200))
-    sender_city_ref = db.Column(db.String(36))
-    sender_warehouse_ref = db.Column(db.String(36))
-    sender_contact_ref = db.Column(db.String(36))
     counterparty_ref = db.Column(db.String(255))
+    sender_city_ref = db.Column(db.String(36))
+    sender_city_name = db.Column(db.String(200))
+    sender_warehouse_ref = db.Column(db.String(36))
+    sender_warehouse_name = db.Column(db.String(300))
+    sender_contact_ref = db.Column(db.String(36))
     is_active = db.Column(db.Boolean, default=True)
     auto_sync = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -204,6 +206,9 @@ class Package(db.Model):
     is_delivered = db.Column(db.Boolean, default=False)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     raw_data = db.Column(db.JSON)
+    author = db.Column(db.String(100))
+    draft_status = db.Column(db.String(20))
+    draft_data = db.Column(db.Text)
     api_key = db.relationship('APIKey', back_populates='packages')
 
 class Client(db.Model):
@@ -218,6 +223,8 @@ class Client(db.Model):
     warehouse_number = db.Column(db.String(10))
     contact_person = db.Column(db.String(200))
     notes = db.Column(db.Text)
+    counterparty_ref = db.Column(db.String(36))
+    contact_ref = db.Column(db.String(36))
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_used = db.Column(db.DateTime)
@@ -257,7 +264,7 @@ class SyncLog(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 def role_required(*roles):
     def decorator(f):
@@ -355,12 +362,67 @@ class NovaPoshtaAPI:
             'Limit': '100'
         })
 
+    def create_or_get_recipient(self, name, phone):
+        """Fixed Indentation and safer parsing"""
+        print(f"🔍 Looking for recipient: {name}, phone: {phone}")
+        
+        try:
+            counterparties, _ = self._post('Counterparty', 'getCounterparties', {
+                'CounterpartyProperty': 'Recipient',
+                'Page': '1'
+            })
+            
+            for cp in counterparties:
+                try:
+                    contacts, _ = self._post('Counterparty', 'getCounterpartyContactPersons', {
+                        'Ref': cp['Ref'],
+                        'Page': '1'
+                    })
+                    
+                    for contact in contacts:
+                        # Clean phone logic to match input
+                        contact_phone = str(contact.get('Phones', '')).replace('+', '').replace('380', '0')[-10:]
+                        if contact_phone == phone:
+                            return {'counterparty_ref': cp['Ref'], 'contact_ref': contact['Ref']}
+                except:
+                    continue
+            
+            # Create New
+            name_parts = name.split()
+            first_name = name_parts[0] if name_parts else name
+            last_name = name_parts[-1] if len(name_parts) > 1 else 'Recipient'
+            middle_name = ' '.join(name_parts[1:-1]) if len(name_parts) > 2 else ''
+            
+            result, response = self._post('Counterparty', 'save', {
+                'CounterpartyType': 'PrivatePerson',
+                'CounterpartyProperty': 'Recipient',
+                'FirstName': first_name,
+                'LastName': last_name,
+                'MiddleName': middle_name,
+                'Phone': phone
+            })
+            
+            if result:
+                cp_ref = result[0]['Ref']
+                # Safer navigation for nested ContactPerson
+                contact_data = result[0].get('ContactPerson', {})
+                # If 'data' exists, use it; otherwise, the object might be direct
+                if isinstance(contact_data, dict) and 'data' in contact_data:
+                    contact_ref = contact_data['data'][0]['Ref']
+                else:
+                    contact_ref = contact_data.get('Ref') or cp_ref # Fallback
+                
+                return {'counterparty_ref': cp_ref, 'contact_ref': contact_ref}
+            
+            raise Exception('Failed to create recipient')
+        except Exception as e:
+            raise Exception(f'Error in create_or_get_recipient: {str(e)}')
+
     def get_status_documents(self, tracking_numbers):
-        """Get CURRENT status for packages by tracking numbers"""
-        if not tracking_numbers:
-            return [], {}
-        documents = [{'DocumentNumber': tn} for tn in tracking_numbers[:100]]
-        return self._post('TrackingDocument', 'getStatusDocuments', {'Documents': documents})
+            """Fixed: API requires a list of objects"""
+            if not tracking_numbers: return [], {}
+            documents = [{'DocumentNumber': str(tn)} for tn in tracking_numbers[:100]]
+            return self._post('TrackingDocument', 'getStatusDocuments', {'Documents': documents})
 
     def get_counterparty_documents(self, counterparty_ref, date_from, limit=100):
         return self._post('InternetDocument', 'getDocumentList', {
@@ -759,15 +821,11 @@ def packages():
 
     q = q.order_by(desc(Package.date_created))
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
-    available_apis = APIKey.query.filter(APIKey.id.in_(api_ids)).all() if api_ids else []
-
-    print(f"DEBUG: api_ids = {api_ids}")
-    print(f"DEBUG: packages count = {len(pagination.items)}")
-    print(f"DEBUG: query = {q}")
+    available_apis = APIKey.query.filter(APIKey.id.in_(api_ids)).all() if api_ids else []    
 
     return render_template('packages.html',
                         packages=pagination.items,
-                        pagination=pagination,  # ✅ Now it's defined
+                        pagination=pagination,
                         api_keys=available_keys,
                         view_mode=view,
                         current_filter=filter_type)
@@ -782,16 +840,19 @@ def package_detail(package_id):
             return jsonify({'error': 'Access denied'}), 403
     return render_template('package_detail.html', package=pkg)
 
-@app.route('/package/<tracking_number>/invoice')
+@app.route('/package/invoice/<tracking_number>')
 @login_required
 def package_invoice(tracking_number):
     pkg = Package.query.filter_by(tracking_number=tracking_number).first_or_404()
-    if current_user.role != 'admin':
-        ids = [tr.api_key_id for tr in current_user.tracked_apis]
-        if pkg.api_key_id not in ids:
-            flash('Access denied.', 'danger')
-            return redirect(url_for('packages'))
-    url = f"https://my.novaposhta.ua/orders/printDocument/orders[]/{tracking_number}/type/pdf/apiKey/{pkg.api_key.api_key}"
+        
+    if not pkg.api_key:
+        flash('Package has no API key', 'danger')
+        return redirect(url_for('packages'))
+    
+    api_key = pkg.api_key.api_key
+    url = f'https://my.novaposhta.ua/orders/printDocument/orders[]/{tracking_number}/type/pdf/apiKey/{api_key}'
+    
+    print(f"DEBUG: URL = {url}")
     return redirect(url)
 
 @app.route('/sync/<int:api_key_id>', methods=['POST'])
@@ -930,11 +991,13 @@ def admin_edit_api_key(key_id):
         key.label = request.form.get('label')
         key.sender_identifier = request.form.get('sender_identifier')
         key.counterparty_ref = request.form.get('counterparty_ref')
+        key.sender_city_ref = request.form.get('sender_city_ref')
+        key.sender_city_name = request.form.get('sender_city_name')
+        key.sender_warehouse_ref = request.form.get('sender_warehouse_ref')
+        key.sender_warehouse_name = request.form.get('sender_warehouse_name')
+        key.sender_contact_ref = request.form.get('sender_contact_ref')
         key.auto_sync = bool(request.form.get('auto_sync'))
         key.is_active = bool(request.form.get('is_active'))
-        api_key_obj.sender_city_ref = request.form.get('sender_city_ref')
-        api_key_obj.sender_warehouse_ref = request.form.get('sender_warehouse_ref')
-        api_key_obj.sender_contact_ref = request.form.get('sender_contact_ref')
         db.session.commit()
         flash(f'API key "{key.label}" updated.', 'success')
         return redirect(url_for('admin_api_keys'))
@@ -1036,7 +1099,11 @@ def create_package():
         action = data.get('action', 'create')  # 'create' or 'draft'
         
         # Validate API key access
-        api_key_id = int(data['api_key_id'])
+        api_key_id = data.get('api_key_id')
+        if not api_key_id or api_key_id == '':
+            return jsonify({'success': False, 'error': 'Please select an API key'})
+
+        api_key_id = int(api_key_id)
         api_key_obj = APIKey.query.get_or_404(api_key_id)
         
         if current_user.role != 'admin':
@@ -1081,16 +1148,18 @@ def create_package():
         # Create package record (starts as draft)
         pkg = Package(
             api_key_id=api_key_id,
-            tracking_number=f'DRAFT_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}',
+            tracking_number=None if action == 'draft' else f'PENDING_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}',
+            status='Draft',
+            status_code='draft',
             direction='outgoing',
             author=current_user.username,
             draft_status='draft' if action == 'draft' else 'pending',
             draft_data=json.dumps(data),
-            recipient_name=data['recipient_name'],
-            recipient_phone=data['recipient_phone'],
-            recipient_city=data.get('recipient_city'),
-            weight=float(data.get('weight', 0)),
-            package_cost=float(data.get('cost', 0)),
+            recipient_name=data.get('recipient_name', ''),
+            recipient_phone=data.get('recipient_phone', ''),
+            recipient_city=data.get('recipient_city', ''),
+            weight=float(data.get('weight')) if data.get('weight') else None,
+            package_cost=float(data.get('cost')) if data.get('cost') else None,
             description=data.get('description', ''),
             date_created=datetime.utcnow()
         )
@@ -1108,6 +1177,77 @@ def create_package():
         # Try to create via Nova Poshta API
         try:
             api = NovaPoshtaAPI(api_key_obj.api_key)
+
+            # Check if we have cached UUIDs for this client
+            recipient_cp = None
+            
+            # If client was saved, check for cached UUIDs
+            if data.get('save_client'):
+                existing_client = Client.query.filter_by(
+                    phone=data['recipient_phone'],
+                    created_by=current_user.id
+                ).first()
+                
+                # Use cached UUIDs if available
+                if existing_client and existing_client.counterparty_ref:
+                    recipient_cp = {
+                        'counterparty_ref': existing_client.counterparty_ref,
+                        'contact_ref': existing_client.contact_ref
+                    }
+                    print(f"✅ Using cached UUIDs for {existing_client.name}")
+            
+            # If no cached UUIDs, create or get from Nova Poshta
+            if not recipient_cp:
+                print(f"⚙️  Fetching recipient UUIDs from Nova Poshta...")
+                recipient_cp = api.create_or_get_recipient(
+                    data['recipient_name'],
+                    data['recipient_phone']
+                )
+                
+                # SAVE UUIDs to client for next time
+                if data.get('save_client'):
+                    client = Client.query.filter_by(
+                        phone=data['recipient_phone'],
+                        created_by=current_user.id
+                    ).first()
+                    
+                    if not client:
+                        client = Client(
+                            name=data['recipient_name'],
+                            phone=data['recipient_phone'],
+                            city=data.get('recipient_city'),
+                            city_ref=data.get('city_recipient_ref'),
+                            warehouse=data.get('recipient_warehouse'),
+                            warehouse_ref=data.get('recipient_address_ref'),
+                            contact_person=data.get('recipient_contact'),
+                            created_by=current_user.id
+                        )
+                        db.session.add(client)
+                    
+                    # Save the UUIDs we just got
+                    client.counterparty_ref = recipient_cp['counterparty_ref']
+                    client.contact_ref = recipient_cp['contact_ref']
+                    client.last_used = datetime.utcnow()
+                    db.session.flush()
+                    
+                    print(f"💾 Saved UUIDs to client: {client.name}")
+            
+            # Prepare data for API (rest remains the same)
+            sender_data = {
+                'city_ref': data['city_sender_ref'],
+                'counterparty_ref': data['sender_ref'],
+                'warehouse_ref': data['sender_address_ref'],
+                'contact_ref': data['contact_sender_ref'],
+                'phone': data['sender_phone']
+            }
+            
+            recipient_data = {
+                'city_ref': data['city_recipient_ref'],
+                'counterparty_ref': recipient_cp['counterparty_ref'],
+                'contact_ref': recipient_cp['contact_ref'],
+                'warehouse_ref': data['recipient_address_ref'],
+                'phone': data['recipient_phone']
+            }
             
             # Prepare data for API
             sender_data = {
@@ -1227,7 +1367,6 @@ def get_warehouses_api(city_ref):
 @app.route('/api/clients/recent')
 @login_required
 def get_recent_clients():
-    """Get user's recent clients for quick selection"""
     clients = Client.query.filter_by(
         created_by=current_user.id
     ).order_by(
@@ -1243,7 +1382,10 @@ def get_recent_clients():
         'city_ref': c.city_ref,
         'warehouse': c.warehouse,
         'warehouse_ref': c.warehouse_ref,
-        'contact_person': c.contact_person
+        'contact_person': c.contact_person,
+        'counterparty_ref': c.counterparty_ref,
+        'contact_ref': c.contact_ref,
+        'has_uuids': bool(c.counterparty_ref)
     } for c in clients])
 
 @app.route('/api/fetch-sender-uuids', methods=['POST'])
@@ -1256,7 +1398,7 @@ def fetch_sender_uuids():
         
         api = NovaPoshtaAPI(api_key)
         
-        # Get sender counterparty
+        # Get counterparty
         counterparties, _ = api._post('Counterparty', 'getCounterparties', {
             'CounterpartyProperty': 'Sender',
             'Page': '1'
@@ -1274,11 +1416,20 @@ def fetch_sender_uuids():
             'Page': '1'
         })
 
-        contact_ref = None
+        contact_ref = contacts[0]['Ref'] if contacts else None
+
+        # Get addresses - ADD DEBUG HERE
+        addresses, _ = api._post('Counterparty', 'getCounterpartyAddresses', {
+            'Ref': counterparty_ref,
+            'CounterpartyProperty': 'Sender'
+        })
+        
+        print(f"DEBUG addresses: {addresses}")
+
         contact_description = None
         if contacts and len(contacts) > 0:
             contact_ref = contacts[0]['Ref']
-            contact_description = contacts[0].get('Description', '')  # ← For Label
+            contact_description = contacts[0].get('Description', '')
         
         # Get addresses/warehouses
         addresses, _ = api._post('Counterparty', 'getCounterpartyAddresses', {
@@ -1288,6 +1439,8 @@ def fetch_sender_uuids():
         
         warehouse_ref = addresses[0]['Ref'] if addresses else None
         city_ref = addresses[0].get('CityRef') if addresses else None
+        
+        print(f"DEBUG city_ref: {city_ref}, warehouse_ref: {warehouse_ref}")
         
         # Get phone from contact person
         phone = None

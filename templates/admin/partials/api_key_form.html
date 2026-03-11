@@ -56,6 +56,145 @@
         </small>
     </div>
 
+    <!-- Sender Location -->
+    <hr>
+    <h6 class="mb-3">Sender Location</h6>
+
+    <div class="mb-3">
+        <label class="form-label">Sender City *</label>
+        <input type="text" class="form-control" id="sender_city_search"
+            value="{{ api_key.sender_city_name if api_key else '' }}" placeholder="Start typing city name..."
+            autocomplete="off" required>
+        <input type="hidden" name="sender_city_ref" id="sender_city_ref"
+            value="{{ api_key.sender_city_ref if api_key else '' }}">
+        <input type="hidden" name="sender_city_name" id="sender_city_name"
+            value="{{ api_key.sender_city_name if api_key else '' }}">
+        <div id="sender_city_results" class="list-group position-absolute"
+            style="z-index:1000; max-height:200px; overflow-y:auto; display:none;">
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Sender Warehouse *</label>
+        <select class="form-select" id="sender_warehouse_select" name="sender_warehouse_ref" required {% if not api_key
+            or not api_key.sender_city_ref %}disabled{% endif %}>
+            <option value="">Select city first...</option>
+            {% if api_key and api_key.sender_warehouse_ref %}
+            <option value="{{ api_key.sender_warehouse_ref }}" selected>
+                {{ api_key.sender_warehouse_name }}
+            </option>
+            {% endif %}
+        </select>
+        <input type="hidden" name="sender_warehouse_name" id="sender_warehouse_name"
+            value="{{ api_key.sender_warehouse_name if api_key else '' }}">
+    </div>
+
+    <script>
+        // City search for sender
+        const senderCityInput = document.getElementById('sender_city_search');
+        const senderCityResults = document.getElementById('sender_city_results');
+        const senderWarehouseSelect = document.getElementById('sender_warehouse_select');
+        let citySearchTimeout;
+
+        senderCityInput.addEventListener('input', function () {
+            clearTimeout(citySearchTimeout);
+            const query = this.value.trim();
+
+            if (query.length < 2) {
+                senderCityResults.style.display = 'none';
+                return;
+            }
+
+            citySearchTimeout = setTimeout(() => {
+                fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
+                    .then(r => r.json())
+                    .then(cities => {
+                        senderCityResults.innerHTML = '';
+                        if (cities.length === 0) {
+                            senderCityResults.style.display = 'none';
+                            return;
+                        }
+
+                        cities.forEach(city => {
+                            const item = document.createElement('a');
+                            item.href = '#';
+                            item.className = 'list-group-item list-group-item-action';
+                            item.textContent = city.name;
+                            item.onclick = (e) => {
+                                e.preventDefault();
+                                selectSenderCity(city);
+                            };
+                            senderCityResults.appendChild(item);
+                        });
+
+                        senderCityResults.style.display = 'block';
+                    })
+                    .catch(err => console.error('City search failed:', err));
+            }, 300);
+        });
+
+        function selectSenderCity(city) {
+            senderCityInput.value = city.name;
+            document.getElementById('sender_city_ref').value = city.ref;
+            document.getElementById('sender_city_name').value = city.name;
+            senderCityResults.style.display = 'none';
+
+            // Don't pass selectedRef when manually selecting new city
+            loadSenderWarehouses(city.ref, null);
+        }
+
+        function loadSenderWarehouses(cityRef, selectedRef = null) {
+            senderWarehouseSelect.innerHTML = '<option value="">Loading...</option>';
+            senderWarehouseSelect.disabled = true;
+
+            fetch(`/api/warehouses/${cityRef}`)
+                .then(r => r.json())
+                .then(warehouses => {
+                    senderWarehouseSelect.innerHTML = '<option value="">Select warehouse...</option>';
+                    warehouses.forEach(wh => {
+                        const opt = document.createElement('option');
+                        opt.value = wh.ref;
+                        opt.textContent = wh.description;
+                        opt.dataset.name = wh.description;
+
+                        // Pre-select if this is the saved warehouse
+                        if (selectedRef && wh.ref === selectedRef) {
+                            opt.selected = true;
+                        }
+
+                        senderWarehouseSelect.appendChild(opt);
+                    });
+                    senderWarehouseSelect.disabled = false;
+                })
+                .catch(err => {
+                    console.error('Failed to load warehouses:', err);
+                    senderWarehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                });
+        }
+
+        // Save warehouse name when selected
+        senderWarehouseSelect.addEventListener('change', function () {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.dataset.name) {
+                document.getElementById('sender_warehouse_name').value = selectedOption.dataset.name;
+            }
+        });
+
+        // Load warehouses if editing and city is set
+        {% if api_key and api_key.sender_city_ref %}
+        document.addEventListener('DOMContentLoaded', function () {
+            loadSenderWarehouses('{{ api_key.sender_city_ref }}', '{{ api_key.sender_warehouse_ref or "" }}');
+        });
+        {% endif %}
+
+        // Hide city results when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!senderCityInput.contains(e.target) && !senderCityResults.contains(e.target)) {
+                senderCityResults.style.display = 'none';
+            }
+        });
+    </script>
+
     <!-- Hidden UUID fields -->
     <input type="hidden" name="sender_city_ref" id="sender_city_ref"
         value="{{ api_key.sender_city_ref if api_key else '' }}">
@@ -130,11 +269,13 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
+                    // Fill counterparty and contact ONLY
                     document.getElementById('counterparty_ref').value = data.counterparty_ref;
-                    document.getElementById('sender_city_ref').value = data.city_ref || '';
-                    document.getElementById('sender_warehouse_ref').value = data.warehouse_ref || '';
+                    // document.getElementById('sender_city_ref').value = data.city_ref || '';
+                    // document.getElementById('sender_warehouse_ref').value = data.warehouse_ref || '';
                     document.getElementById('sender_contact_ref').value = data.contact_ref || '';
 
+                    // Auto-fill phone
                     if (data.phone) {
                         document.querySelector('input[name="sender_identifier"]').value = data.phone;
                     }

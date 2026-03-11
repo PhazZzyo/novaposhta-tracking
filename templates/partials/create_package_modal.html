@@ -8,21 +8,71 @@
             </div>
             <div class="modal-body">
                 <form id="createPackageForm">
-                    
+
                     <!-- API Key Selection -->
                     <div class="mb-3">
                         <label class="form-label">API Key *</label>
                         <select class="form-select" id="pkg_api_key" required>
                             <option value="">Select API key...</option>
                             {% for key in api_keys %}
-                            <option value="{{ key.id }}" 
-                                    data-sender-phone="{{ key.sender_identifier }}"
-                                    data-counterparty-ref="{{ key.counterparty_ref }}">
+                            <option value="{{ key.id }}" data-sender-phone="{{ key.sender_identifier or '' }}"
+                                data-counterparty-ref="{{ key.counterparty_ref or '' }}"
+                                data-city-ref="{{ key.sender_city_ref or '' }}"
+                                data-warehouse-ref="{{ key.sender_warehouse_ref or '' }}"
+                                data-contact-ref="{{ key.sender_contact_ref or '' }}"
+                                data-city-name="{{ key.sender_city_name or '' }}"
+                                data-warehouse-name="{{ key.sender_warehouse_name or '' }}">
                                 {{ key.label }}
                             </option>
                             {% endfor %}
                         </select>
                     </div>
+
+                    <div id="senderSection" style="display:none;">
+                        <hr>
+                        <h6 class="mb-3"><i class="bi bi-building"></i> Sender (Your Company)</h6>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sender City</label>
+                                <input type="text" class="form-control" id="sender_city_display" readonly>
+                                <input type="hidden" id="pkg_sender_city_ref">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sender Warehouse</label>
+                                <input type="text" class="form-control" id="sender_warehouse_display" readonly>
+                                <input type="hidden" id="pkg_sender_warehouse_ref">
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="edit_sender">
+                            <label class="form-check-label" for="edit_sender">
+                                Edit sender location for this package only
+                            </label>
+                        </div>
+
+                        <!-- Editable sender fields (hidden by default) -->
+                        <div id="editableSenderFields" style="display:none;">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Sender City *</label>
+                                    <input type="text" class="form-control" id="sender_city_search_edit"
+                                        placeholder="Start typing..." autocomplete="off">
+                                    <div id="sender_city_results_edit" class="list-group position-absolute"
+                                        style="z-index:1050; max-height:200px; overflow-y:auto; display:none;"></div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Sender Warehouse *</label>
+                                    <select class="form-select" id="sender_warehouse_edit" disabled>
+                                        <option value="">Select city first...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
 
                     <!-- Client Quick Select -->
                     <div class="mb-3">
@@ -31,32 +81,58 @@
                             <option value="">-- New client --</option>
                         </select>
                         <small class="text-muted">Select from recent clients or create new</small>
+                        <small class="text-muted" id="client_uuid_status"></small>
                     </div>
+
+                    <script>
+                        // When client is selected
+                        quickClientSelect.addEventListener('change', function () {
+                            if (!this.value) return;
+
+                            const client = JSON.parse(this.options[this.selectedIndex].dataset.client);
+
+                            // Show UUID status
+                            const statusEl = document.getElementById('client_uuid_status');
+                            if (client.has_uuids) {
+                                statusEl.textContent = '✅ Client has Nova Poshta account (fast creation)';
+                                statusEl.className = 'text-success';
+                            } else {
+                                statusEl.textContent = '⚙️ Will create Nova Poshta account on first package';
+                                statusEl.className = 'text-muted';
+                            }
+
+                            // ... rest of client selection ...
+                        });
+                    </script>
 
                     <hr>
 
                     <!-- Recipient Section -->
                     <h6 class="mb-3"><i class="bi bi-person"></i> Recipient</h6>
-                    
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Name *</label>
-                            <input type="text" class="form-control" id="recipient_name" required placeholder="John Doe">
+                            <input type="text" class="form-control" id="recipient_name" required
+                                placeholder="Переверзєв Василь" pattern="[А-ЯЁІЇЄҐа-яёіїєґ\s'-]+"
+                                title="Only Ukrainian/Cyrillic letters allowed">
+                            <small class="text-muted">Тільки українські літери (only Cyrillic)</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Phone *</label>
-                            <input type="text" class="form-control" id="recipient_phone" required 
-                                   pattern="0[0-9]{9}" placeholder="0975850022" title="10 digits starting with 0">
+                            <input type="text" class="form-control" id="recipient_phone" required pattern="0[0-9]{9}"
+                                placeholder="0975850022" title="10 digits starting with 0">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">City *</label>
-                            <input type="text" class="form-control" id="recipient_city_search" required 
-                                   placeholder="Start typing city name..." autocomplete="off">
+                            <input type="text" class="form-control" id="recipient_city_search" required
+                                placeholder="Start typing city name..." autocomplete="off">
                             <input type="hidden" id="recipient_city_ref">
-                            <div id="city_results" class="list-group position-absolute" style="z-index:1000; max-height:200px; overflow-y:auto; display:none;"></div>
+                            <div id="city_results" class="list-group position-absolute"
+                                style="z-index:1000; max-height:200px; overflow-y:auto; display:none;"></div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Warehouse *</label>
@@ -83,12 +159,12 @@
 
                     <!-- Package Details -->
                     <h6 class="mb-3"><i class="bi bi-box-seam"></i> Package Details</h6>
-                    
+
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Weight (kg) *</label>
-                            <input type="number" class="form-control" id="pkg_weight" required 
-                                   step="0.1" min="0.1" max="2000" placeholder="1.5">
+                            <input type="number" class="form-control" id="pkg_weight" required step="0.1" min="0.1"
+                                max="2000" placeholder="1.5">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Seats</label>
@@ -96,8 +172,8 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Declared Value (UAH) *</label>
-                            <input type="number" class="form-control" id="pkg_cost" required 
-                                   step="0.01" min="0" placeholder="500">
+                            <input type="number" class="form-control" id="pkg_cost" required step="0.01" min="0"
+                                placeholder="500">
                         </div>
                     </div>
 
@@ -112,8 +188,8 @@
 
                     <div class="mb-3">
                         <label class="form-label">Description *</label>
-                        <textarea class="form-control" id="pkg_description" required rows="2" 
-                                  placeholder="Brief description of package contents"></textarea>
+                        <textarea class="form-control" id="pkg_description" required rows="2"
+                            placeholder="Brief description of package contents"></textarea>
                     </div>
 
                     <div class="row">
@@ -135,7 +211,8 @@
 
                     <!-- Estimated Cost Display -->
                     <div class="alert alert-info">
-                        <small><i class="bi bi-info-circle"></i> Estimated shipping cost: ~80 UAH (calculated by Nova Poshta)</small>
+                        <small><i class="bi bi-info-circle"></i> Estimated shipping cost: ~80 UAH (calculated by Nova
+                            Poshta)</small>
                     </div>
 
                 </form>
@@ -155,82 +232,340 @@
 
 <!-- JavaScript for Package Creation -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('createPackageModal');
-    const form = document.getElementById('createPackageForm');
-    const cityInput = document.getElementById('recipient_city_search');
-    const cityResults = document.getElementById('city_results');
-    const warehouseSelect = document.getElementById('recipient_warehouse');
-    const quickClientSelect = document.getElementById('quick_client');
-    
-    let citySearchTimeout;
-    
-    // Load recent clients when modal opens
-    modal.addEventListener('show.bs.modal', function() {
-        loadRecentClients();
-    });
-    
-    // Load recent clients
-    function loadRecentClients() {
-        fetch('/api/clients/recent')
-            .then(r => r.json())
-            .then(clients => {
-                quickClientSelect.innerHTML = '<option value="">-- New client --</option>';
-                clients.forEach(client => {
-                    const opt = document.createElement('option');
-                    opt.value = client.id;
-                    opt.textContent = `${client.name} (${client.phone})`;
-                    opt.dataset.client = JSON.stringify(client);
-                    quickClientSelect.appendChild(opt);
-                });
-            })
-            .catch(err => console.error('Failed to load clients:', err));
-    }
-    
-    // Quick client selection
-    quickClientSelect.addEventListener('change', function() {
-        if (!this.value) return;
-        
-        const client = JSON.parse(this.options[this.selectedIndex].dataset.client);
-        document.getElementById('recipient_name').value = client.name;
-        document.getElementById('recipient_phone').value = client.phone;
-        
-        if (client.city && client.city_ref) {
-            document.getElementById('recipient_city_search').value = client.city;
-            document.getElementById('recipient_city_ref').value = client.city_ref;
-            loadWarehouses(client.city_ref, client.warehouse_ref);
+    // API key dropdown change handler 
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('createPackageModal');
+        const form = document.getElementById('createPackageForm');
+        const cityInput = document.getElementById('recipient_city_search');
+        const cityResults = document.getElementById('city_results');
+        const warehouseSelect = document.getElementById('recipient_warehouse');
+        const quickClientSelect = document.getElementById('quick_client');
+
+        let citySearchTimeout;
+
+        // Load recent clients when modal opens
+        modal.addEventListener('show.bs.modal', function () {
+            loadRecentClients();
+        });
+
+        // Load recent clients
+        function loadRecentClients() {
+            fetch('/api/clients/recent')
+                .then(r => r.json())
+                .then(clients => {
+                    quickClientSelect.innerHTML = '<option value="">-- New client --</option>';
+                    clients.forEach(client => {
+                        const opt = document.createElement('option');
+                        opt.value = client.id;
+                        opt.textContent = `${client.name} (${client.phone})`;
+                        opt.dataset.client = JSON.stringify(client);
+                        quickClientSelect.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error('Failed to load clients:', err));
         }
-        
-        if (client.contact_person) {
-            document.getElementById('recipient_contact').value = client.contact_person;
-        }
-    });
-    
-    // City search with autocomplete
-    cityInput.addEventListener('input', function() {
-        clearTimeout(citySearchTimeout);
-        const query = this.value.trim();
-        
-        if (query.length < 2) {
+
+        // Quick client selection
+        quickClientSelect.addEventListener('change', function () {
+            if (!this.value) return;
+
+            const client = JSON.parse(this.options[this.selectedIndex].dataset.client);
+            document.getElementById('recipient_name').value = client.name;
+            document.getElementById('recipient_phone').value = client.phone;
+
+            if (client.city && client.city_ref) {
+                document.getElementById('recipient_city_search').value = client.city;
+                document.getElementById('recipient_city_ref').value = client.city_ref;
+                setTimeout(() => loadWarehouses(client.city_ref, client.warehouse_ref), 500);
+            }
+
+            if (client.contact_person) {
+                document.getElementById('recipient_contact').value = client.contact_person;
+            }
+        });
+
+        // City search with autocomplete
+        cityInput.addEventListener('input', function () {
+            clearTimeout(citySearchTimeout);
+            const query = this.value.trim();
+
+            if (query.length < 2) {
+                cityResults.style.display = 'none';
+                return;
+            }
+
+            citySearchTimeout = setTimeout(() => {
+                fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
+                    .then(r => r.json())
+                    .then(cities => {
+                        if (cities.error) {
+                            showToast('danger', cities.error);
+                            return;
+                        }
+
+                        cityResults.innerHTML = '';
+                        if (cities.length === 0) {
+                            cityResults.style.display = 'none';
+                            return;
+                        }
+
+                        cities.forEach(city => {
+                            const item = document.createElement('a');
+                            item.href = '#';
+                            item.className = 'list-group-item list-group-item-action';
+                            item.textContent = city.name;
+                            item.onclick = (e) => {
+                                e.preventDefault();
+                                selectCity(city);
+                            };
+                            cityResults.appendChild(item);
+                        });
+
+                        cityResults.style.display = 'block';
+                    })
+                    .catch(err => {
+                        console.error('City search failed:', err);
+                        showToast('danger', 'Failed to search cities');
+                    });
+            }, 300);
+        });
+
+        // Select city
+        function selectCity(city) {
+            cityInput.value = city.name;
+            document.getElementById('recipient_city_ref').value = city.ref;
             cityResults.style.display = 'none';
+
+            // Load warehouses for selected city
+            loadWarehouses(city.ref);
+        }
+
+        // Load warehouses for city
+        function loadWarehouses(cityRef, selectedWarehouseRef = null) {
+            warehouseSelect.innerHTML = '<option value="">Loading...</option>';
+            warehouseSelect.disabled = true;
+
+            fetch(`/api/warehouses/${cityRef}`)
+                .then(r => r.json())
+                .then(warehouses => {
+                    if (warehouses.error) {
+                        showToast('danger', warehouses.error);
+                        warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                        return;
+                    }
+
+                    warehouseSelect.innerHTML = '<option value="">Select warehouse...</option>';
+                    warehouses.forEach(wh => {
+                        const opt = document.createElement('option');
+                        opt.value = wh.ref;
+                        opt.textContent = wh.description;
+                        opt.dataset.number = wh.number;
+                        if (selectedWarehouseRef && wh.ref === selectedWarehouseRef) {
+                            opt.selected = true;
+                        }
+                        warehouseSelect.appendChild(opt);
+                    });
+
+                    warehouseSelect.disabled = false;
+                })
+                .catch(err => {
+                    console.error('Failed to load warehouses:', err);
+                    warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                });
+        }
+
+        // Hide city results when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!cityInput.contains(e.target) && !cityResults.contains(e.target)) {
+                cityResults.style.display = 'none';
+            }
+        });
+
+        // Create Package button
+        document.getElementById('createPackageBtn').addEventListener('click', function () {
+            if (validateForm(false)) {  // Validate for create
+                submitPackage('create');
+            }
+        });
+
+        // Save Draft button
+        document.getElementById('saveDraftBtn').addEventListener('click', function () {
+            // No validation for draft - just save
+            submitPackage('draft');
+        });
+
+        // Form validation
+        function validateForm(isDraft) {
+            const form = document.getElementById('createPackageForm');
+
+            // For draft - no validation needed
+            if (isDraft) {
+                return true;
+            }
+
+            // For create - check all required fields
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return false;
+            }
+
+            // Check hidden UUID fields
+            if (!document.getElementById('recipient_city_ref').value) {
+                alert('Please select a city from the dropdown');
+                return false;
+            }
+
+            if (!document.getElementById('recipient_warehouse').value) {
+                alert('Please select a warehouse');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Submit package
+        function submitPackage(action) {
+            const apiKeySelect = document.getElementById('pkg_api_key');
+            const form = document.getElementById('createPackageForm');
+
+            if (!apiKeySelect.value) {
+                alert('Please select an API key');
+                return;
+            }
+
+            const selectedOption = apiKeySelect.options[apiKeySelect.selectedIndex];
+
+            const data = {
+                action: action,
+                api_key_id: apiKeySelect.value,
+
+                // Sender data (from API key - need to get these UUIDs from Nova Poshta)
+                sender_ref: selectedOption.dataset.counterpartyRef || '',
+                city_sender_ref: document.getElementById('pkg_sender_city_ref').value,
+                sender_address_ref: document.getElementById('pkg_sender_warehouse_ref').value,
+                contact_sender_ref: selectedOption.dataset.contactRef || '',
+                sender_phone: selectedOption.dataset.senderPhone || '',
+
+                // Recipient data
+                recipient_name: document.getElementById('recipient_name').value,
+                recipient_phone: document.getElementById('recipient_phone').value,
+                recipient_city: cityInput.value,
+                city_recipient_ref: document.getElementById('recipient_city_ref').value,
+                recipient_warehouse: warehouseSelect.options[warehouseSelect.selectedIndex]?.textContent || '',
+                recipient_address_ref: warehouseSelect.value,
+                recipient_contact: document.getElementById('recipient_contact').value || document.getElementById('recipient_name').value,
+
+                // Package data
+                weight: document.getElementById('pkg_weight').value,
+                seats: document.getElementById('pkg_seats').value || 1,
+                cost: document.getElementById('pkg_cost').value,
+                cargo_type: document.getElementById('pkg_cargo_type').value,
+                description: document.getElementById('pkg_description').value,
+                payer_type: document.getElementById('pkg_payer').value,
+                payment_method: document.getElementById('pkg_payment').value,
+
+                // Save client checkbox
+                save_client: document.getElementById('save_client').checked
+            };
+
+            const btn = action === 'create' ? document.getElementById('createPackageBtn') : document.getElementById('saveDraftBtn');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+            fetch('/package/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        showToast('success', result.message);
+                        bootstrap.Modal.getInstance(modal).hide();
+                        form.reset();
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        showToast('danger', result.message || result.error);
+                    }
+                })
+                .catch(err => {
+                    showToast('danger', 'Error: ' + err.message);
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                });
+        }
+    });
+    // Show/populate sender section when API key is selected
+    document.getElementById('pkg_api_key').addEventListener('change', function () {
+        const selectedOption = this.options[this.selectedIndex];
+        const senderSection = document.getElementById('senderSection');
+
+        if (!this.value) {
+            senderSection.style.display = 'none';
             return;
         }
-        
-        citySearchTimeout = setTimeout(() => {
+
+        // Get sender data from API key
+        const cityName = selectedOption.dataset.cityName;
+        const warehouseName = selectedOption.dataset.warehouseName;
+        const cityRef = selectedOption.dataset.cityRef;
+        const warehouseRef = selectedOption.dataset.warehouseRef;
+
+        // Show sender section
+        senderSection.style.display = 'block';
+
+        // Populate readonly fields
+        document.getElementById('sender_city_display').value = cityName || 'Not configured';
+        document.getElementById('sender_warehouse_display').value = warehouseName || 'Not configured';
+        document.getElementById('pkg_sender_city_ref').value = cityRef || '';
+        document.getElementById('pkg_sender_warehouse_ref').value = warehouseRef || '';
+
+        // Reset edit mode
+        document.getElementById('edit_sender').checked = false;
+        document.getElementById('editableSenderFields').style.display = 'none';
+    });
+
+    // Toggle editable sender fields
+    document.getElementById('edit_sender').addEventListener('change', function () {
+        const editFields = document.getElementById('editableSenderFields');
+        const readonlyRow = document.querySelector('#senderSection .row:first-child');  // The readonly row
+
+        if (this.checked) {
+            readonlyRow.style.display = 'none';
+            editFields.style.display = 'block';
+        } else {
+            readonlyRow.style.display = 'flex';
+            editFields.style.display = 'none';
+        }
+    });
+
+    // City search for editable sender
+    let senderCitySearchTimeout;
+    const senderCitySearchEdit = document.getElementById('sender_city_search_edit');
+    const senderCityResultsEdit = document.getElementById('sender_city_results_edit');
+
+    senderCitySearchEdit.addEventListener('input', function () {
+        clearTimeout(senderCitySearchTimeout);
+        const query = this.value.trim();
+
+        if (query.length < 2) {
+            senderCityResultsEdit.style.display = 'none';
+            return;
+        }
+
+        senderCitySearchTimeout = setTimeout(() => {
             fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
                 .then(r => r.json())
                 .then(cities => {
-                    if (cities.error) {
-                        showToast('danger', cities.error);
-                        return;
-                    }
-                    
-                    cityResults.innerHTML = '';
+                    senderCityResultsEdit.innerHTML = '';
                     if (cities.length === 0) {
-                        cityResults.style.display = 'none';
+                        senderCityResultsEdit.style.display = 'none';
                         return;
                     }
-                    
+
                     cities.forEach(city => {
                         const item = document.createElement('a');
                         item.href = '#';
@@ -238,152 +573,54 @@ document.addEventListener('DOMContentLoaded', function() {
                         item.textContent = city.name;
                         item.onclick = (e) => {
                             e.preventDefault();
-                            selectCity(city);
+                            selectEditSenderCity(city);
                         };
-                        cityResults.appendChild(item);
+                        senderCityResultsEdit.appendChild(item);
                     });
-                    
-                    cityResults.style.display = 'block';
-                })
-                .catch(err => {
-                    console.error('City search failed:', err);
-                    showToast('danger', 'Failed to search cities');
+
+                    senderCityResultsEdit.style.display = 'block';
                 });
         }, 300);
     });
-    
-    // Select city
-    function selectCity(city) {
-        cityInput.value = city.name;
-        document.getElementById('recipient_city_ref').value = city.ref;
-        cityResults.style.display = 'none';
-        
-        // Load warehouses for selected city
-        loadWarehouses(city.ref);
+
+    function selectEditSenderCity(city) {
+        senderCitySearchEdit.value = city.name;
+        document.getElementById('pkg_sender_city_ref').value = city.ref;
+        senderCityResultsEdit.style.display = 'none';
+        loadSenderWarehousesEdit(city.ref);
     }
-    
-    // Load warehouses for city
-    function loadWarehouses(cityRef, selectedWarehouseRef = null) {
-        warehouseSelect.innerHTML = '<option value="">Loading...</option>';
-        warehouseSelect.disabled = true;
-        
+
+    function loadSenderWarehousesEdit(cityRef, selectedRef = null) {
+        const whSelect = document.getElementById('sender_warehouse_edit');
+        whSelect.innerHTML = '<option value="">Loading...</option>';
+        whSelect.disabled = true;
+
         fetch(`/api/warehouses/${cityRef}`)
             .then(r => r.json())
             .then(warehouses => {
-                if (warehouses.error) {
-                    showToast('danger', warehouses.error);
-                    warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
-                    return;
-                }
-                
-                warehouseSelect.innerHTML = '<option value="">Select warehouse...</option>';
+                whSelect.innerHTML = '<option value="">Select warehouse...</option>';
                 warehouses.forEach(wh => {
                     const opt = document.createElement('option');
                     opt.value = wh.ref;
                     opt.textContent = wh.description;
-                    opt.dataset.number = wh.number;
-                    if (selectedWarehouseRef && wh.ref === selectedWarehouseRef) {
+                    if (selectedRef && wh.ref === selectedRef) {
                         opt.selected = true;
                     }
-                    warehouseSelect.appendChild(opt);
+                    whSelect.appendChild(opt);
                 });
-                
-                warehouseSelect.disabled = false;
-            })
-            .catch(err => {
-                console.error('Failed to load warehouses:', err);
-                warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                whSelect.disabled = false;
             });
     }
-    
+
+    // Update warehouse ref when changed
+    document.getElementById('sender_warehouse_edit').addEventListener('change', function () {
+        document.getElementById('pkg_sender_warehouse_ref').value = this.value;
+    });
+
     // Hide city results when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!cityInput.contains(e.target) && !cityResults.contains(e.target)) {
-            cityResults.style.display = 'none';
+    document.addEventListener('click', function (e) {
+        if (!senderCitySearchEdit.contains(e.target) && !senderCityResultsEdit.contains(e.target)) {
+            senderCityResultsEdit.style.display = 'none';
         }
     });
-    
-    // Create Package button
-    document.getElementById('createPackageBtn').addEventListener('click', function() {
-        submitPackage('create');
-    });
-    
-    // Save Draft button
-    document.getElementById('saveDraftBtn').addEventListener('click', function() {
-        submitPackage('draft');
-    });
-    
-    // Submit package
-    function submitPackage(action) {
-        if (action === 'create' && !form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-        
-        const apiKeySelect = document.getElementById('pkg_api_key');
-        const selectedOption = apiKeySelect.options[apiKeySelect.selectedIndex];
-        
-        const data = {
-            action: action,
-            api_key_id: apiKeySelect.value,
-            
-            // Sender data (from API key - need to get these UUIDs from Nova Poshta)
-            sender_ref: selectedOption.dataset.counterpartyRef || 'REQUIRED_UUID',
-            city_sender_ref: 'REQUIRED_UUID',  // Get from API key setup
-            sender_address_ref: 'REQUIRED_UUID',  // Get from API key setup
-            contact_sender_ref: 'REQUIRED_UUID',  // Get from API key setup
-            sender_phone: selectedOption.dataset.senderPhone,
-            
-            // Recipient data
-            recipient_name: document.getElementById('recipient_name').value,
-            recipient_phone: document.getElementById('recipient_phone').value,
-            recipient_city: cityInput.value,
-            city_recipient_ref: document.getElementById('recipient_city_ref').value,
-            recipient_warehouse: warehouseSelect.options[warehouseSelect.selectedIndex]?.textContent || '',
-            recipient_address_ref: warehouseSelect.value,
-            recipient_contact: document.getElementById('recipient_contact').value || document.getElementById('recipient_name').value,
-            
-            // Package data
-            weight: document.getElementById('pkg_weight').value,
-            seats: document.getElementById('pkg_seats').value || 1,
-            cost: document.getElementById('pkg_cost').value,
-            cargo_type: document.getElementById('pkg_cargo_type').value,
-            description: document.getElementById('pkg_description').value,
-            payer_type: document.getElementById('pkg_payer').value,
-            payment_method: document.getElementById('pkg_payment').value,
-            
-            // Save client checkbox
-            save_client: document.getElementById('save_client').checked
-        };
-        
-        const btn = action === 'create' ? document.getElementById('createPackageBtn') : document.getElementById('saveDraftBtn');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
-        
-        fetch('/package/create', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        })
-        .then(r => r.json())
-        .then(result => {
-            if (result.success) {
-                showToast('success', result.message);
-                bootstrap.Modal.getInstance(modal).hide();
-                form.reset();
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast('danger', result.message || result.error);
-            }
-        })
-        .catch(err => {
-            showToast('danger', 'Error: ' + err.message);
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-        });
-    }
-});
 </script>
