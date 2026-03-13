@@ -46,6 +46,31 @@ def utc_to_local(dt):
 
 app.jinja_env.filters['local_time'] = utc_to_local
 
+# TIME CONTEXT PROCESSOR
+@app.context_processor
+def inject_timezone_helpers():
+    """Make timezone-aware datetime formatting available in all templates"""
+    def format_datetime(dt, fmt='%d.%m.%Y %H:%M'):
+        """Format datetime in user's timezone"""
+        if not dt:
+            return '-'
+        local = utc_to_local(dt)
+        return local.strftime(fmt) if local else '-'
+    
+    def format_date(dt):
+        """Format just the date"""
+        return format_datetime(dt, '%d.%m.%Y')
+    
+    def format_time(dt):
+        """Format just the time"""
+        return format_datetime(dt, '%H:%M')
+    
+    return {
+        'format_datetime': format_datetime,
+        'format_date': format_date,
+        'format_time': format_time
+    }
+
 # Translations
 TRANSLATIONS = {
     'en': {

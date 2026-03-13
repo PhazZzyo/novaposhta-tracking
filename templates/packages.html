@@ -85,8 +85,8 @@
                         {% elif pkg.status_code == '9' %}<span class="badge bg-success"><i class="bi bi-box-seam"></i>
                             {{ pkg.status }}</span>{% else %}<span class="badge bg-warning text-dark"><i
                                 class="bi bi-hourglass-split"></i> {{ pkg.status }}</span>{% endif %}</td>
-                    <td>{% if pkg.date_created %}{{ pkg.date_created.strftime('%d.%m.%Y') }}<br><small
-                            class="text-muted">{{ pkg.date_created.strftime('%H:%M') }}</small>{% else %}-{% endif %}
+                    <td>{{ format_date(pkg.date_created) }}<br>
+                        <small class="text-muted">{{ format_time(pkg.date_created) }}</small>
                     </td>
                     <td>
                         {% if pkg.author %}
