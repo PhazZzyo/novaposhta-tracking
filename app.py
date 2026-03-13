@@ -325,27 +325,69 @@ class NovaPoshtaAPI:
         })
 
     def create_internet_document(self, sender_data, recipient_data, package_data):
+        # Get current time in Kyiv timezone
+        kyiv_tz = pytz.timezone('Europe/Kyiv')
+        current_date = datetime.now(kyiv_tz).strftime('%d.%m.%Y')
+
+        #debug log
+        payload = {
+        'PayerType': package_data.get('payer_type', 'Recipient'),
+        'PaymentMethod': package_data.get('payment_method', 'Cash'),
+        'DateTime': current_date,
+        'CargoType': package_data.get('cargo_type', 'Parcel'),
+        'Weight': str(package_data['weight']),
+        'ServiceType': 'WarehouseWarehouse',
+        'SeatsAmount': str(package_data.get('seats', 1)),
+        'Description': package_data['description'],
+        'Cost': str(package_data['cost']),
+        
+        # Sender
+        'CitySender': sender_data['city_ref'],
+        'Sender': sender_data['counterparty_ref'],
+        'SenderAddress': sender_data['warehouse_ref'],
+        'ContactSender': sender_data['contact_ref'],
+        'SendersPhone': sender_data['phone'],
+        
+        # Recipient
+        'CityRecipient': recipient_data['city_ref'],
+        'Recipient': recipient_data['counterparty_ref'],
+        'RecipientAddress': recipient_data['warehouse_ref'],
+        'ContactRecipient': recipient_data['contact_ref'],
+        'RecipientsPhone': recipient_data['phone'],
+        'RecipientName': recipient_data.get('name', ''),
+        'RecipientType': 'PrivatePerson'
+
+        }
+    
+        print(f"📨 Full API payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+        
         """Create package via Nova Poshta API - requires UUIDs for all refs"""
         return self._post('InternetDocument', 'save', {
             'PayerType': package_data.get('payer_type', 'Recipient'),
             'PaymentMethod': package_data.get('payment_method', 'Cash'),
-            'DateTime': datetime.now().strftime('%d.%m.%Y'),
+            #'DateTime': datetime.now().strftime('%d.%m.%Y'),
             'CargoType': package_data.get('cargo_type', 'Parcel'),
             'Weight': str(package_data['weight']),
             'ServiceType': 'WarehouseWarehouse',
             'SeatsAmount': str(package_data.get('seats', 1)),
             'Description': package_data['description'],
             'Cost': str(package_data['cost']),
+            
+            # Sender
             'CitySender': sender_data['city_ref'],
             'Sender': sender_data['counterparty_ref'],
             'SenderAddress': sender_data['warehouse_ref'],
             'ContactSender': sender_data['contact_ref'],
             'SendersPhone': sender_data['phone'],
+            
+            # Recipient
             'CityRecipient': recipient_data['city_ref'],
-            'RecipientName': recipient_data['name'],
+            'Recipient': recipient_data['counterparty_ref'],
             'RecipientAddress': recipient_data['warehouse_ref'],
-            'ContactRecipient': recipient_data.get('contact', recipient_data['name']),
-            'RecipientsPhone': recipient_data['phone']
+            'ContactRecipient': recipient_data['contact_ref'],
+            'RecipientsPhone': recipient_data['phone'],
+            'RecipientName': recipient_data.get('name', ''),
+            'RecipientType': 'PrivatePerson'
         })
     
     def search_cities(self, query):
@@ -362,61 +404,49 @@ class NovaPoshtaAPI:
             'Limit': '100'
         })
 
+    # Fetch a recipient counterparty by phone and name, and create if not exists
+
     def create_or_get_recipient(self, name, phone):
-        """Fixed Indentation and safer parsing"""
-        print(f"🔍 Looking for recipient: {name}, phone: {phone}")
+        """
+        Step 4A: Create or find recipient counterparty
+        Returns: {'counterparty_ref': '...', 'contact_ref': '...'}
+        """
+        # Split name into parts (Nova Poshta requires FirstName, LastName)
+        name_parts = name.strip().split()
+        first_name = name_parts[0] if len(name_parts) > 0 else name
+        last_name = name_parts[-1] if len(name_parts) > 1 else ''
+        middle_name = ' '.join(name_parts[1:-1]) if len(name_parts) > 2 else ''
         
-        try:
-            counterparties, _ = self._post('Counterparty', 'getCounterparties', {
-                'CounterpartyProperty': 'Recipient',
-                'Page': '1'
-            })
-            
-            for cp in counterparties:
-                try:
-                    contacts, _ = self._post('Counterparty', 'getCounterpartyContactPersons', {
-                        'Ref': cp['Ref'],
-                        'Page': '1'
-                    })
-                    
-                    for contact in contacts:
-                        # Clean phone logic to match input
-                        contact_phone = str(contact.get('Phones', '')).replace('+', '').replace('380', '0')[-10:]
-                        if contact_phone == phone:
-                            return {'counterparty_ref': cp['Ref'], 'contact_ref': contact['Ref']}
-                except:
-                    continue
-            
-            # Create New
-            name_parts = name.split()
-            first_name = name_parts[0] if name_parts else name
-            last_name = name_parts[-1] if len(name_parts) > 1 else 'Recipient'
-            middle_name = ' '.join(name_parts[1:-1]) if len(name_parts) > 2 else ''
-            
-            result, response = self._post('Counterparty', 'save', {
-                'CounterpartyType': 'PrivatePerson',
-                'CounterpartyProperty': 'Recipient',
-                'FirstName': first_name,
-                'LastName': last_name,
-                'MiddleName': middle_name,
-                'Phone': phone
-            })
-            
-            if result:
-                cp_ref = result[0]['Ref']
-                # Safer navigation for nested ContactPerson
-                contact_data = result[0].get('ContactPerson', {})
-                # If 'data' exists, use it; otherwise, the object might be direct
-                if isinstance(contact_data, dict) and 'data' in contact_data:
-                    contact_ref = contact_data['data'][0]['Ref']
-                else:
-                    contact_ref = contact_data.get('Ref') or cp_ref # Fallback
-                
-                return {'counterparty_ref': cp_ref, 'contact_ref': contact_ref}
-            
-            raise Exception('Failed to create recipient')
-        except Exception as e:
-            raise Exception(f'Error in create_or_get_recipient: {str(e)}')
+        # Create new recipient (Counterparty/save)
+        result, response = self._post('Counterparty', 'save', {
+            'CounterpartyType': 'PrivatePerson',
+            'CounterpartyProperty': 'Recipient',
+            'FirstName': first_name,
+            'LastName': last_name,
+            'MiddleName': middle_name,
+            'Phone': phone
+        })
+        
+        # Check if successful
+        if not result or len(result) == 0:
+            error_msg = response.get('errors', ['Unknown error'])[0] if response.get('errors') else 'No data returned'
+            raise Exception(f'Failed to create recipient: {error_msg}')
+        
+        # Extract UUIDs from response
+        recipient_data = result[0]
+        counterparty_ref = recipient_data.get('Ref')
+        
+        # ContactPerson is nested in the response
+        contact_person_data = recipient_data.get('ContactPerson', {}).get('data', [])
+        contact_ref = contact_person_data[0].get('Ref') if contact_person_data else None
+        
+        if not counterparty_ref or not contact_ref:
+            raise Exception('Response missing Ref or ContactPerson.Ref')
+        
+        return {
+            'counterparty_ref': counterparty_ref,
+            'contact_ref': contact_ref
+        }
 
     def get_status_documents(self, tracking_numbers):
             """Fixed: API requires a list of objects"""
@@ -635,7 +665,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
                             
                             # Update delivery date if delivered
                             if pkg.is_delivered and not pkg.actual_delivery_date:
-                                pkg.actual_delivery_date = datetime.utcnow()
+                                pkg.actual_delivery_date = datetime.now(pytz.UTC)
                             
                             updated += 1
                 
@@ -661,17 +691,16 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
         print(f"Status update error: {e}")
     
     # Update last sync time
-    api_key_obj.last_sync = datetime.utcnow()
+    api_key_obj.last_sync = datetime.now(pytz.UTC)
     db.session.commit()
     
     return len(results) > 0, ' | '.join(results)
 
-
-
+# Cooldown check: allow sync if last_sync is more than 5 minutes ago
 def cooldown_ok(api_key_obj):
     if not api_key_obj.last_sync:
         return True, None
-    diff = datetime.utcnow() - api_key_obj.last_sync
+    diff = datetime.utcnow() - api_key_obj.last_sync  # ✅ Both naive
     cd = timedelta(minutes=5)
     if diff < cd:
         mins = int((cd - diff).total_seconds() / 60) + 1
@@ -699,7 +728,7 @@ def login():
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.check_password(request.form.get('password')) and user.is_active:
             login_user(user, remember=bool(request.form.get('remember')))
-            user.last_login = datetime.utcnow()
+            user.last_login = datetime.now(pytz.UTC)
             db.session.commit()
             if user.must_change_password:
                 flash('Please change your password.', 'warning')
@@ -744,6 +773,7 @@ def dashboard():
     api_ids = [k.id for k in api_keys]
     if api_ids:
         all_pkgs = Package.query.filter(Package.api_key_id.in_(api_ids))
+        Package.draft_status == 'sent'   # Only count sent packages
         total = all_pkgs.count()
         
         # Delivering: active packages, excluding ready incoming
@@ -1072,7 +1102,7 @@ def admin_log():
     if f_type: q = q.filter(SyncLog.sync_type == f_type)
     if f_api: q = q.filter(SyncLog.api_key_id == f_api)
     if f_user: q = q.filter(SyncLog.user_id == f_user)
-    if f_days: q = q.filter(SyncLog.created_at >= datetime.utcnow() - timedelta(days=f_days))
+    if f_days: q = q.filter(SyncLog.created_at >= datetime.now(pytz.UTC) - timedelta(days=f_days))
 
     pagination = q.order_by(desc(SyncLog.created_at)).paginate(page=page, per_page=per_page, error_out=False)
     api_keys = APIKey.query.all()
@@ -1130,7 +1160,7 @@ def create_package():
                 existing_client.warehouse = data.get('recipient_warehouse')
                 existing_client.warehouse_ref = data.get('recipient_address_ref')
                 existing_client.contact_person = data.get('recipient_contact')
-                existing_client.last_used = datetime.utcnow()
+                existing_client.last_used = datetime.now(pytz.UTC)
             else:
                 # Create new
                 new_client = Client(
@@ -1148,7 +1178,7 @@ def create_package():
         # Create package record (starts as draft)
         pkg = Package(
             api_key_id=api_key_id,
-            tracking_number=None if action == 'draft' else f'PENDING_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}',
+            tracking_number=f'DRAFT_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}' if action == 'draft' else '',
             status='Draft',
             status_code='draft',
             direction='outgoing',
@@ -1161,7 +1191,7 @@ def create_package():
             weight=float(data.get('weight')) if data.get('weight') else None,
             package_cost=float(data.get('cost')) if data.get('cost') else None,
             description=data.get('description', ''),
-            date_created=datetime.utcnow()
+            date_created=datetime.now(pytz.UTC)
         )
         db.session.add(pkg)
         db.session.commit()
@@ -1203,6 +1233,43 @@ def create_package():
                     data['recipient_name'],
                     data['recipient_phone']
                 )
+
+                # debug log
+                print(f"✅ Got recipient UUIDs: {recipient_cp}")
+
+                # Prepare data for API
+                package_data = {
+                    'weight': data['weight'],
+                    'cost': data['cost'],
+                    'description': data['description'],
+                    'seats': data.get('seats', 1),
+                    'cargo_type': data.get('cargo_type', 'Parcel'),
+                    'payer_type': data.get('payer_type', 'Recipient'),
+                    'payment_method': data.get('payment_method', 'Cash')
+                }
+                
+                sender_data = {
+                    'city_ref': data['city_sender_ref'],
+                    'counterparty_ref': data['sender_ref'],
+                    'warehouse_ref': data['sender_address_ref'],
+                    'contact_ref': data.get('contact_sender_ref') if data.get('contact_sender_ref') not in ['None', None, ''] else '',
+                    'phone': data['sender_phone']
+                }
+                
+                recipient_data = {
+                    'city_ref': data['city_recipient_ref'],
+                    'counterparty_ref': recipient_cp['counterparty_ref'],
+                    'contact_ref': recipient_cp['contact_ref'],
+                    'warehouse_ref': data['recipient_address_ref'],
+                    'phone': data['recipient_phone'],
+                    'name': data['recipient_name']
+                }
+                            
+                result, response = api.create_internet_document(
+                    sender_data, recipient_data, package_data
+                )
+
+                print(f"🔍 Nova Poshta response: {response}")
                 
                 # SAVE UUIDs to client for next time
                 if data.get('save_client'):
@@ -1227,58 +1294,10 @@ def create_package():
                     # Save the UUIDs we just got
                     client.counterparty_ref = recipient_cp['counterparty_ref']
                     client.contact_ref = recipient_cp['contact_ref']
-                    client.last_used = datetime.utcnow()
+                    client.last_used = datetime.now(pytz.UTC)
                     db.session.flush()
                     
                     print(f"💾 Saved UUIDs to client: {client.name}")
-            
-            # Prepare data for API (rest remains the same)
-            sender_data = {
-                'city_ref': data['city_sender_ref'],
-                'counterparty_ref': data['sender_ref'],
-                'warehouse_ref': data['sender_address_ref'],
-                'contact_ref': data['contact_sender_ref'],
-                'phone': data['sender_phone']
-            }
-            
-            recipient_data = {
-                'city_ref': data['city_recipient_ref'],
-                'counterparty_ref': recipient_cp['counterparty_ref'],
-                'contact_ref': recipient_cp['contact_ref'],
-                'warehouse_ref': data['recipient_address_ref'],
-                'phone': data['recipient_phone']
-            }
-            
-            # Prepare data for API
-            sender_data = {
-                'city_ref': data['city_sender_ref'],
-                'counterparty_ref': data['sender_ref'],
-                'warehouse_ref': data['sender_address_ref'],
-                'contact_ref': data['contact_sender_ref'],
-                'phone': data['sender_phone']
-            }
-            
-            recipient_data = {
-                'city_ref': data['city_recipient_ref'],
-                'name': data['recipient_name'],
-                'warehouse_ref': data['recipient_address_ref'],
-                'contact': data.get('recipient_contact', data['recipient_name']),
-                'phone': data['recipient_phone']
-            }
-            
-            package_data = {
-                'weight': data['weight'],
-                'cost': data['cost'],
-                'description': data['description'],
-                'seats': data.get('seats', 1),
-                'cargo_type': data.get('cargo_type', 'Parcel'),
-                'payer_type': data.get('payer_type', 'Recipient'),
-                'payment_method': data.get('payment_method', 'Cash')
-            }
-            
-            result, response = api.create_internet_document(
-                sender_data, recipient_data, package_data
-            )
             
             if result and len(result) > 0:
                 # Success!
@@ -1481,6 +1500,33 @@ def init_db():
             db.session.commit()
             print('✅ Default admin created: sysadmin / sysadmin')
 
+# Draft deletion route
+@app.route('/package/<int:package_id>/delete', methods=['POST'])
+@login_required
+def delete_package(package_id):
+    """Delete draft/failed package (only author or admin)"""
+    
+    pkg = Package.query.get_or_404(package_id)    
+    
+    # Check permissions
+    if current_user.role != 'admin' and pkg.author != current_user.username:        
+        flash('You can only delete your own drafts', 'danger')
+        return redirect(url_for('packages'))
+    
+    # Only allow deleting drafts and failed packages
+    if pkg.draft_status not in ['draft', 'failed']:        
+        flash('Only draft or failed packages can be deleted', 'warning')
+        return redirect(url_for('packages'))
+    
+    # Delete
+    ttn = pkg.tracking_number or f"Draft #{pkg.id}"
+    db.session.delete(pkg)
+    db.session.commit()
+    
+    flash(f'Package {ttn} deleted', 'success')
+    return redirect(url_for('packages'))
+
+# Run app
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True)

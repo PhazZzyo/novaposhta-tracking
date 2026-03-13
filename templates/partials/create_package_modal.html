@@ -120,8 +120,8 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Phone *</label>
-                            <input type="text" class="form-control" id="recipient_phone" required pattern="0[0-9]{9}"
-                                placeholder="0975850022" title="10 digits starting with 0">
+                            <input type="tel" class="form-control" id="recipient_phone" required pattern="0[0-9]{9}"
+                                maxlength="10" placeholder="0XXXXXXXXX" title="10 digits starting with 0">
                         </div>
                     </div>
 
@@ -443,7 +443,7 @@
                 sender_ref: selectedOption.dataset.counterpartyRef || '',
                 city_sender_ref: document.getElementById('pkg_sender_city_ref').value,
                 sender_address_ref: document.getElementById('pkg_sender_warehouse_ref').value,
-                contact_sender_ref: selectedOption.dataset.contactRef || '',
+                contact_sender_ref: (selectedOption.dataset.contactRef && selectedOption.dataset.contactRef !== 'None') ? selectedOption.dataset.contactRef : '',
                 sender_phone: selectedOption.dataset.senderPhone || '',
 
                 // Recipient data

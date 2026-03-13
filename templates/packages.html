@@ -43,15 +43,25 @@
                     <th>{{ t('recipient') }}</th>
                     <th>{{ t('status') }}</th>
                     <th>{{ t('created') }}</th>
-                    <th>{{ t('author') }}</th>                    
+                    <th>{{ t('author') }}</th>
                     <th class="text-end">{{ t('actions') }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for pkg in packages %}
                 <tr {% if pkg.is_delivered %}class="table-light" {% endif %}>
-                    <td><code class="ttn">{{ pkg.tracking_number }}</code><br><small class="text-muted">{{
-                            pkg.api_key.label if pkg.api_key else '' }}</small></td>
+                    <td>
+                        {% if pkg.draft_status == 'draft' %}
+                        <span class="badge bg-secondary">DRAFT</span>
+                        <small class="text-muted">{{ pkg.recipient_name }}</small>
+                        {% elif pkg.draft_status == 'failed' %}
+                        <span class="badge bg-danger">FAILED</span>
+                        <small class="text-muted">{{ pkg.recipient_name }}</small>
+                        {% else %}
+                        <code class="ttn">{{ pkg.tracking_number }}</code>
+                        <br><small class="text-muted">{{ pkg.api_key.label if pkg.api_key else '' }}</small>
+                        {% endif %}
+                    </td>
                     <td>{% if pkg.direction == 'incoming' %}<span class="badge bg-success"
                             title="{{ t('incoming') }}"><i class="bi bi-arrow-down-circle"></i></span>{% else %}<span
                             class="badge bg-primary" title="{{ t('outgoing') }}"><i
@@ -78,26 +88,39 @@
                     <td>{% if pkg.date_created %}{{ pkg.date_created.strftime('%d.%m.%Y') }}<br><small
                             class="text-muted">{{ pkg.date_created.strftime('%H:%M') }}</small>{% else %}-{% endif %}
                     </td>
-                    
-                    <!-- ✅ ADD AUTHOR COLUMN HERE -->
                     <td>
                         {% if pkg.author %}
-                            {% if pkg.author == 'api' or pkg.author == 'web' %}
-                                <span class="badge bg-secondary">{{ pkg.author }}</span>
-                            {% else %}
-                                <span class="badge bg-primary">{{ pkg.author }}</span>
-                            {% endif %}
+                        {% if pkg.author == 'api' or pkg.author == 'web' %}
+                        <span class="badge bg-secondary">{{ pkg.author }}</span>
                         {% else %}
-                            <span class="badge bg-secondary">web</span>
+                        <span class="badge bg-primary">{{ pkg.author }}</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="badge bg-secondary">web</span>
                         {% endif %}
                     </td>
-                    
+
                     <td class="text-end text-nowrap">
+                        {% if pkg.draft_status in ['draft', 'failed'] %}
+                        <!-- Draft/Failed: Show delete button -->
+                        <button class="btn btn-sm btn-danger"
+                            onclick="confirmDelete({{ pkg.id }}, '{{ pkg.tracking_number or 'Draft #' ~ pkg.id }}')"
+                            title="Delete draft">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% else %}
+                        <!-- Sent package: Show invoice button -->
                         <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
-                            class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}"><i
-                                class="bi bi-file-pdf"></i></a>
+                            class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
+                            <i class="bi bi-file-pdf"></i>
+                        </a>
+                        {% endif %}
+
+                        <!-- Info button (always shown) -->
                         <button class="btn btn-sm btn-primary ms-1" data-bs-toggle="modal" data-bs-target="#pkgModal"
-                            onclick="loadPackage({{ pkg.id }})"><i class="bi bi-info-circle"></i></button>
+                            onclick="loadPackage({{ pkg.id }})">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -240,7 +263,28 @@
 </div>
 
 {% block extra_js %}
-<script>function loadPackage(id) { const b = document.getElementById('pkgModalBody'); b.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>'; fetch(`/package/${id}`).then(r => r.text()).then(h => { b.innerHTML = h; }).catch(e => { b.innerHTML = `<div class="alert alert-danger">${e}</div>`; }); }</script>
+<script>
+    // Load package details into modal
+    function loadPackage(id) {
+        const b = document.getElementById('pkgModalBody');
+        b.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+        fetch(`/package/${id}`)
+            .then(r => r.text())
+            .then(h => { b.innerHTML = h; })
+            .catch(e => { b.innerHTML = `<div class="alert alert-danger">${e}</div>`; });
+    }
+
+    // Confirm delete action
+    function confirmDelete(packageId, ttnOrLabel) {
+        if (confirm('Delete package ' + ttnOrLabel + '?\n\nThis action cannot be undone.')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/package/' + packageId + '/delete';
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
 {% include 'partials/create_package_modal.html' %}
 {% endblock %}
 {% endblock %}
