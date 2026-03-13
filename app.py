@@ -1193,9 +1193,14 @@ def create_package():
             author=current_user.username,
             draft_status='draft' if action == 'draft' else 'pending',
             draft_data=json.dumps(data),
+            sender_name=api_key_obj.label,
+            sender_city=api_key_obj.sender_city_name,
+            sender_phone=api_key_obj.sender_identifier,
             recipient_name=data.get('recipient_name', ''),
             recipient_phone=data.get('recipient_phone', ''),
             recipient_city=data.get('recipient_city', ''),
+            recipient_warehouse=data.get('recipient_warehouse', ''),
+            recipient_contact=data.get('recipient_contact', ''),
             weight=float(data.get('weight')) if data.get('weight') else None,
             package_cost=float(data.get('cost')) if data.get('cost') else None,
             description=data.get('description', ''),
@@ -1312,6 +1317,9 @@ def create_package():
                 pkg.status = 'Створено'
                 pkg.status_code = '1'
                 pkg.raw_data = doc
+                pkg.sender_name = data.get('sender_name') or pkg.sender_name
+                pkg.sender_city = data.get('sender_city') or pkg.sender_city
+                pkg.sender_phone = data.get('sender_phone') or pkg.sender_phone
                 db.session.commit()
                 
                 return jsonify({
