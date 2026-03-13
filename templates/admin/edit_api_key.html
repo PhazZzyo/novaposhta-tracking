@@ -7,23 +7,6 @@
         <div class="card">
             <div class="card-body">
                 {% include 'admin/partials/api_key_form.html' %}
-
-                <!-- TEMPORARY - make visible to see values -->
-                <div class="mb-3">
-                    <label>City Ref (debug)</label>
-                    <input type="text" name="sender_city_ref" id="sender_city_ref" 
-                        value="{{ api_key.sender_city_ref or '' }}" class="form-control">
-                </div>
-                <div class="mb-3">
-                    <label>Warehouse Ref (debug)</label>
-                    <input type="text" name="sender_warehouse_ref" id="sender_warehouse_ref" 
-                        value="{{ api_key.sender_warehouse_ref or '' }}" class="form-control">
-                </div>
-                <div class="mb-3">
-                    <label>Contact Ref (debug)</label>
-                    <input type="text" name="sender_contact_ref" id="sender_contact_ref" 
-                        value="{{ api_key.sender_contact_ref or '' }}" class="form-control">
-                </div>
             </div>
         </div>
     </div>

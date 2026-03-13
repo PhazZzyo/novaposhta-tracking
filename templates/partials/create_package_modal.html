@@ -15,14 +15,16 @@
                         <select class="form-select" id="pkg_api_key" required>
                             <option value="">Select API key...</option>
                             {% for key in api_keys %}
-                            <option value="{{ key.id }}" data-sender-phone="{{ key.sender_identifier or '' }}"
+                            <option value="{{ key.id }}" {% if not key.sender_contact_ref %}disabled{% endif %}
+                                data-sender-phone="{{ key.sender_identifier or '' }}"
                                 data-counterparty-ref="{{ key.counterparty_ref or '' }}"
                                 data-city-ref="{{ key.sender_city_ref or '' }}"
                                 data-warehouse-ref="{{ key.sender_warehouse_ref or '' }}"
                                 data-contact-ref="{{ key.sender_contact_ref or '' }}"
                                 data-city-name="{{ key.sender_city_name or '' }}"
                                 data-warehouse-name="{{ key.sender_warehouse_name or '' }}">
-                                {{ key.label }}
+                                {{ key.label }}{% if not key.sender_contact_ref %} (incomplete UUIDs - fetch required){%
+                                endif %}
                             </option>
                             {% endfor %}
                         </select>

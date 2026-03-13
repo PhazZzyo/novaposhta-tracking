@@ -163,6 +163,7 @@ class APIKey(db.Model):
     sender_warehouse_ref = db.Column(db.String(36))
     sender_warehouse_name = db.Column(db.String(300))
     sender_contact_ref = db.Column(db.String(36))
+    sender_contact_name = db.Column(db.String(200))
     is_active = db.Column(db.Boolean, default=True)
     auto_sync = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1026,6 +1027,7 @@ def admin_edit_api_key(key_id):
         key.sender_warehouse_ref = request.form.get('sender_warehouse_ref')
         key.sender_warehouse_name = request.form.get('sender_warehouse_name')
         key.sender_contact_ref = request.form.get('sender_contact_ref')
+        key.sender_contact_name = request.form.get('sender_contact_name')
         key.auto_sync = bool(request.form.get('auto_sync'))
         key.is_active = bool(request.form.get('is_active'))
         db.session.commit()
@@ -1175,10 +1177,16 @@ def create_package():
                 )
                 db.session.add(new_client)
         
+        # Generate internal uniqe tracking number
+        if action == 'draft':
+            temp_ttn = f'DRAFT_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}'
+        else:
+            temp_ttn = f'PENDING_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}'
+
         # Create package record (starts as draft)
         pkg = Package(
             api_key_id=api_key_id,
-            tracking_number=f'DRAFT_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}' if action == 'draft' else '',
+            tracking_number=temp_ttn,
             status='Draft',
             status_code='draft',
             direction='outgoing',
@@ -1233,9 +1241,6 @@ def create_package():
                     data['recipient_name'],
                     data['recipient_phone']
                 )
-
-                # debug log
-                print(f"✅ Got recipient UUIDs: {recipient_cp}")
 
                 # Prepare data for API
                 package_data = {
@@ -1436,14 +1441,13 @@ def fetch_sender_uuids():
         })
 
         contact_ref = contacts[0]['Ref'] if contacts else None
+        contact_name = contacts[0].get('Description', '') if contacts else ''        
 
-        # Get addresses - ADD DEBUG HERE
+        # Get addresses
         addresses, _ = api._post('Counterparty', 'getCounterpartyAddresses', {
             'Ref': counterparty_ref,
             'CounterpartyProperty': 'Sender'
         })
-        
-        print(f"DEBUG addresses: {addresses}")
 
         contact_description = None
         if contacts and len(contacts) > 0:
@@ -1458,9 +1462,7 @@ def fetch_sender_uuids():
         
         warehouse_ref = addresses[0]['Ref'] if addresses else None
         city_ref = addresses[0].get('CityRef') if addresses else None
-        
-        print(f"DEBUG city_ref: {city_ref}, warehouse_ref: {warehouse_ref}")
-        
+                
         # Get phone from contact person
         phone = None
         if contacts and len(contacts) > 0:
@@ -1470,7 +1472,7 @@ def fetch_sender_uuids():
                 # Convert to 10-digit format
                 phone_str = str(phones_data).strip().replace('+', '')
                 if phone_str.startswith('380') and len(phone_str) == 12:
-                    phone = '0' + phone_str[3:]  # 380931234567 → 0931234567
+                    phone = '0' + phone_str[3:]
                 elif len(phone_str) == 10:
                     phone = phone_str
 
@@ -1480,6 +1482,7 @@ def fetch_sender_uuids():
             'city_ref': city_ref,
             'warehouse_ref': warehouse_ref,
             'contact_ref': contact_ref,
+            'contact_name': contact_name,
             'phone': phone,
             'description': contact_description or cp.get('Description', ''),  # ← Use contact description first
             'city_description': addresses[0].get('CityDescription', '') if addresses else ''

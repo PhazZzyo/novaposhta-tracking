@@ -88,6 +88,34 @@
         <input type="hidden" name="sender_warehouse_name" id="sender_warehouse_name"
             value="{{ api_key.sender_warehouse_name if api_key else '' }}">
     </div>
+    <div class="mb-3">
+        <label class="form-label">Contact Person</label>
+        <input type="text" class="form-control" id="sender_contact_display"
+            value="{% if api_key and api_key.sender_contact_name %}{{ api_key.sender_contact_name }} ({{ api_key.sender_identifier }}){% elif api_key %}{{ api_key.sender_identifier }}{% endif %}"
+            readonly>
+        <input type="hidden" name="sender_contact_name" id="sender_contact_name"
+            value="{{ api_key.sender_contact_name if api_key else '' }}">
+        <small class="text-muted">Auto-filled from "Fetch UUIDs"</small>
+    </div>
+    <!-- Degug information -->
+    <details>
+        <summary class="mb-3">Click to see the debug information</summary>
+        <div class="mb-3">
+            <label>City Ref (debug)</label>
+            <input type="text" name="sender_city_ref" id="sender_city_ref" value="{{ api_key.sender_city_ref or '' }}"
+                class="form-control">
+        </div>
+        <div class="mb-3">
+            <label>Warehouse Ref (debug)</label>
+            <input type="text" name="sender_warehouse_ref" id="sender_warehouse_ref"
+                value="{{ api_key.sender_warehouse_ref or '' }}" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label>Contact Ref (debug)</label>
+            <input type="text" name="sender_contact_ref" id="sender_contact_ref"
+                value="{{ api_key.sender_contact_ref or '' }}" class="form-control">
+        </div>
+    </details>
 
     <script>
         // City search for sender
@@ -269,17 +297,25 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    // Fill counterparty and contact ONLY
+                    // Fill counterparty and contact
                     document.getElementById('counterparty_ref').value = data.counterparty_ref;
-                    // document.getElementById('sender_city_ref').value = data.city_ref || '';
-                    // document.getElementById('sender_warehouse_ref').value = data.warehouse_ref || '';
                     document.getElementById('sender_contact_ref').value = data.contact_ref || '';
+                    document.getElementById('sender_contact_name').value = data.contact_name || '';
 
                     // Auto-fill phone
                     if (data.phone) {
                         document.querySelector('input[name="sender_identifier"]').value = data.phone;
                     }
 
+                    // Fill contact person display field (name + phone)
+                    if (data.contact_name && data.phone) {
+                        document.getElementById('sender_contact_display').value =
+                            data.contact_name + ' (' + data.phone + ')';
+                    } else if (data.phone) {
+                        document.getElementById('sender_contact_display').value = data.phone;
+                    }
+
+                    // Auto-fill label if empty
                     if (data.description) {
                         const labelInput = document.querySelector('input[name="label"]');
                         if (labelInput && !labelInput.value) {
@@ -287,7 +323,9 @@
                         }
                     }
 
-                    alert('✅ UUIDs Fetched!\n\nCounterparty: ' + data.counterparty_ref +
+                    alert('✅ UUIDs Fetched!\n\n' +
+                        'Counterparty: ' + data.counterparty_ref +
+                        (data.contact_name ? '\nContact: ' + data.contact_name : '') +
                         (data.phone ? '\nPhone: ' + data.phone : '') +
                         (data.description ? '\nName: ' + data.description : '') +
                         '\n\nReview and Save.');
