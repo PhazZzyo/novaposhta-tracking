@@ -4,8 +4,9 @@
 <div class="login-wrapper">
     <div class="login-box">
         <div class="text-center mb-4">
-            <i class="bi bi-box-seam login-icon"></i>
-            <h2 class="mt-2 mb-1">Nova Poshta</h2>
+            <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="Nova Poshta" height="80"
+                class="mb-3 navbar-logo">
+            <h2>Nova Poshta Tracker</h2>
             <p class="text-muted">{{ t('tracking_system') }}</p>
         </div>
         <form method="POST">
