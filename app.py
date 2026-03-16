@@ -351,51 +351,20 @@ class NovaPoshtaAPI:
         })
 
     def create_internet_document(self, sender_data, recipient_data, package_data):
+        """Create package via Nova Poshta API - requires UUIDs for all refs"""
+        
         # Get current time in Kyiv timezone
         kyiv_tz = pytz.timezone('Europe/Kyiv')
         current_date = datetime.now(kyiv_tz).strftime('%d.%m.%Y')
 
-        #debug log
         payload = {
-        'PayerType': package_data.get('payer_type', 'Recipient'),
-        'PaymentMethod': package_data.get('payment_method', 'Cash'),
-        'DateTime': current_date,
-        'CargoType': package_data.get('cargo_type', 'Parcel'),
-        'Weight': str(package_data['weight']),
-        'ServiceType': 'WarehouseWarehouse',
-        'SeatsAmount': str(package_data.get('seats', 1)),
-        'Description': package_data['description'],
-        'Cost': str(package_data['cost']),
-        
-        # Sender
-        'CitySender': sender_data['city_ref'],
-        'Sender': sender_data['counterparty_ref'],
-        'SenderAddress': sender_data['warehouse_ref'],
-        'ContactSender': sender_data['contact_ref'],
-        'SendersPhone': sender_data['phone'],
-        
-        # Recipient
-        'CityRecipient': recipient_data['city_ref'],
-        'Recipient': recipient_data['counterparty_ref'],
-        'RecipientAddress': recipient_data['warehouse_ref'],
-        'ContactRecipient': recipient_data['contact_ref'],
-        'RecipientsPhone': recipient_data['phone'],
-        'RecipientName': recipient_data.get('name', ''),
-        'RecipientType': 'PrivatePerson'
-
-        }
-    
-        print(f"📨 Full API payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
-        
-        """Create package via Nova Poshta API - requires UUIDs for all refs"""
-        return self._post('InternetDocument', 'save', {
             'PayerType': package_data.get('payer_type', 'Recipient'),
             'PaymentMethod': package_data.get('payment_method', 'Cash'),
-            #'DateTime': datetime.now().strftime('%d.%m.%Y'),
+            'DateTime': current_date,
             'CargoType': package_data.get('cargo_type', 'Parcel'),
             'Weight': str(package_data['weight']),
             'ServiceType': 'WarehouseWarehouse',
-            'SeatsAmount': str(package_data.get('seats', 1)),
+            'SeatsAmount': str(package_data.get('seats_amount', 1)),
             'Description': package_data['description'],
             'Cost': str(package_data['cost']),
             
@@ -414,8 +383,16 @@ class NovaPoshtaAPI:
             'RecipientsPhone': recipient_data['phone'],
             'RecipientName': recipient_data.get('name', ''),
             'RecipientType': 'PrivatePerson'
-        })
-    
+        }
+        
+        # Add seats data if provided (CRITICAL for multiple seats!)
+        if package_data.get('seats_data'):
+            payload['OptionsSeat'] = package_data['seats_data']
+        
+        print(f"📨 Full API payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+        
+        return self._post('InternetDocument', 'save', payload)
+        
     def search_cities(self, query):
         """Search cities by name"""
         return self._post('Address', 'getCities', {
@@ -1153,6 +1130,10 @@ def create_package():
     """Create new package via Nova Poshta API or save as draft"""
     try:
         data = request.json
+        # 🔍 DEBUG
+        print(f"📦 Backend received:")
+        print(f"   recipient_city: '{data.get('recipient_city')}'")
+        print(f"   sender_city: '{data.get('sender_city')}'")
         action = data.get('action', 'create')  # 'create' or 'draft'
         
         # Validate API key access
@@ -1172,6 +1153,40 @@ def create_package():
             if not tracked:
                 return jsonify({'success': False, 'error': 'Access denied'}), 403
         
+        # ============================================
+        # COLLECT SEATS DATA
+        # ============================================
+        seats_data = []
+        seats_amount = 0
+        
+        # Loop through seats (frontend sends seat_1_weight, seat_1_length, etc)
+        for i in range(1, 100):
+            weight = data.get(f'seat_{i}_weight')
+            if not weight:
+                break
+            
+            seats_amount += 1
+            seat = {
+                'volumetricWidth': int(data.get(f'seat_{i}_width') or 0),
+                'volumetricLength': int(data.get(f'seat_{i}_length') or 0),
+                'volumetricHeight': int(data.get(f'seat_{i}_height') or 0),
+                'weight': float(weight)
+            }
+            seats_data.append(seat)
+        
+        # Ensure at least 1 seat (fallback to old weight field)
+        if seats_amount == 0:
+            seats_amount = 1
+            seats_data = [{
+                'volumetricWidth': 0,
+                'volumetricLength': 0,
+                'volumetricHeight': 0,
+                'weight': float(data.get('weight', 1.0))
+            }]
+        
+        # Calculate total weight from all seats
+        total_weight = sum(seat['weight'] for seat in seats_data)
+        
         # Save client if requested
         if data.get('save_client'):
             existing_client = Client.query.filter_by(
@@ -1183,9 +1198,9 @@ def create_package():
                 # Update existing
                 existing_client.name = data['recipient_name']
                 existing_client.city = data.get('recipient_city')
-                existing_client.city_ref = data.get('city_recipient_ref')
+                existing_client.city_ref = data.get('recipient_city_ref')
                 existing_client.warehouse = data.get('recipient_warehouse')
-                existing_client.warehouse_ref = data.get('recipient_address_ref')
+                existing_client.warehouse_ref = data.get('recipient_warehouse_ref')
                 existing_client.contact_person = data.get('recipient_contact')
                 existing_client.last_used = datetime.now(pytz.UTC)
             else:
@@ -1194,15 +1209,15 @@ def create_package():
                     name=data['recipient_name'],
                     phone=data['recipient_phone'],
                     city=data.get('recipient_city'),
-                    city_ref=data.get('city_recipient_ref'),
+                    city_ref=data.get('recipient_city_ref'),
                     warehouse=data.get('recipient_warehouse'),
-                    warehouse_ref=data.get('recipient_address_ref'),
+                    warehouse_ref=data.get('recipient_warehouse_ref'),
                     contact_person=data.get('recipient_contact'),
                     created_by=current_user.id
                 )
                 db.session.add(new_client)
         
-        # Generate internal uniqe tracking number
+        # Generate internal unique tracking number
         if action == 'draft':
             temp_ttn = f'DRAFT_{datetime.now().strftime("%Y%m%d%H%M%S")}_{current_user.id}'
         else:
@@ -1226,7 +1241,8 @@ def create_package():
             recipient_city=data.get('recipient_city', ''),
             recipient_warehouse=data.get('recipient_warehouse', ''),
             recipient_contact=data.get('recipient_contact', ''),
-            weight=float(data.get('weight')) if data.get('weight') else None,
+            weight=total_weight,
+            package_count=seats_amount,
             package_cost=float(data.get('cost')) if data.get('cost') else None,
             description=data.get('description', ''),
             date_created=datetime.now(pytz.UTC)
@@ -1272,67 +1288,68 @@ def create_package():
                     data['recipient_phone']
                 )
 
-                # Prepare data for API
-                package_data = {
-                    'weight': data['weight'],
-                    'cost': data['cost'],
-                    'description': data['description'],
-                    'seats': data.get('seats', 1),
-                    'cargo_type': data.get('cargo_type', 'Parcel'),
-                    'payer_type': data.get('payer_type', 'Recipient'),
-                    'payment_method': data.get('payment_method', 'Cash')
-                }
-                
-                sender_data = {
-                    'city_ref': data['city_sender_ref'],
-                    'counterparty_ref': data['sender_ref'],
-                    'warehouse_ref': data['sender_address_ref'],
-                    'contact_ref': data.get('contact_sender_ref') if data.get('contact_sender_ref') not in ['None', None, ''] else '',
-                    'phone': data['sender_phone']
-                }
-                
-                recipient_data = {
-                    'city_ref': data['city_recipient_ref'],
-                    'counterparty_ref': recipient_cp['counterparty_ref'],
-                    'contact_ref': recipient_cp['contact_ref'],
-                    'warehouse_ref': data['recipient_address_ref'],
-                    'phone': data['recipient_phone'],
-                    'name': data['recipient_name']
-                }
-                            
-                result, response = api.create_internet_document(
-                    sender_data, recipient_data, package_data
-                )
+            # Prepare data for API WITH SEATS
+            package_data = {
+                'weight': str(total_weight),
+                'cost': data['cost'],
+                'description': data['description'],
+                'seats_amount': str(seats_amount),
+                'seats_data': seats_data,
+                'cargo_type': data.get('cargo_type', 'Parcel'),
+                'payer_type': data.get('payer_type', 'Recipient'),
+                'payment_method': data.get('payment_method', 'Cash')
+            }
+            
+            sender_data = {
+                'city_ref': data['sender_city_ref'],
+                'counterparty_ref': data['sender_ref'],
+                'warehouse_ref': data['sender_warehouse_ref'],
+                'contact_ref': data.get('sender_contact_ref') if data.get('sender_contact_ref') not in ['None', None, ''] else '',
+                'phone': data['sender_phone']
+            }
+            
+            recipient_data = {
+                'city_ref': data['recipient_city_ref'],
+                'counterparty_ref': recipient_cp['counterparty_ref'],
+                'contact_ref': recipient_cp['contact_ref'],
+                'warehouse_ref': data['recipient_warehouse_ref'],
+                'phone': data['recipient_phone'],
+                'name': data['recipient_name']
+            }
+                        
+            result, response = api.create_internet_document(
+                sender_data, recipient_data, package_data
+            )
 
-                print(f"🔍 Nova Poshta response: {response}")
+            print(f"🔍 Nova Poshta response: {response}")
+            
+            # SAVE UUIDs to client for next time
+            if data.get('save_client'):
+                client = Client.query.filter_by(
+                    phone=data['recipient_phone'],
+                    created_by=current_user.id
+                ).first()
                 
-                # SAVE UUIDs to client for next time
-                if data.get('save_client'):
-                    client = Client.query.filter_by(
+                if not client:
+                    client = Client(
+                        name=data['recipient_name'],
                         phone=data['recipient_phone'],
+                        city=data.get('recipient_city'),
+                        city_ref=data.get('recipient_city_ref'),
+                        warehouse=data.get('recipient_warehouse'),
+                        warehouse_ref=data.get('recipient_warehouse_ref'),
+                        contact_person=data.get('recipient_contact'),
                         created_by=current_user.id
-                    ).first()
-                    
-                    if not client:
-                        client = Client(
-                            name=data['recipient_name'],
-                            phone=data['recipient_phone'],
-                            city=data.get('recipient_city'),
-                            city_ref=data.get('city_recipient_ref'),
-                            warehouse=data.get('recipient_warehouse'),
-                            warehouse_ref=data.get('recipient_address_ref'),
-                            contact_person=data.get('recipient_contact'),
-                            created_by=current_user.id
-                        )
-                        db.session.add(client)
-                    
-                    # Save the UUIDs we just got
-                    client.counterparty_ref = recipient_cp['counterparty_ref']
-                    client.contact_ref = recipient_cp['contact_ref']
-                    client.last_used = datetime.now(pytz.UTC)
-                    db.session.flush()
-                    
-                    print(f"💾 Saved UUIDs to client: {client.name}")
+                    )
+                    db.session.add(client)
+                
+                # Save the UUIDs we just got
+                client.counterparty_ref = recipient_cp['counterparty_ref']
+                client.contact_ref = recipient_cp['contact_ref']
+                client.last_used = datetime.now(pytz.UTC)
+                db.session.flush()
+                
+                print(f"💾 Saved UUIDs to client: {client.name}")
             
             if result and len(result) > 0:
                 # Success!
@@ -1345,6 +1362,8 @@ def create_package():
                 pkg.sender_name = data.get('sender_name') or pkg.sender_name
                 pkg.sender_city = data.get('sender_city') or pkg.sender_city
                 pkg.sender_phone = data.get('sender_phone') or pkg.sender_phone
+                pkg.weight = total_weight
+                pkg.package_count = seats_amount
                 db.session.commit()
                 
                 return jsonify({

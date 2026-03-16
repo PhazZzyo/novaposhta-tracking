@@ -86,27 +86,6 @@
                         <small class="text-muted" id="client_uuid_status"></small>
                     </div>
 
-                    <script>
-                        // When client is selected
-                        quickClientSelect.addEventListener('change', function () {
-                            if (!this.value) return;
-
-                            const client = JSON.parse(this.options[this.selectedIndex].dataset.client);
-
-                            // Show UUID status
-                            const statusEl = document.getElementById('client_uuid_status');
-                            if (client.has_uuids) {
-                                statusEl.textContent = '✅ Client has Nova Poshta account (fast creation)';
-                                statusEl.className = 'text-success';
-                            } else {
-                                statusEl.textContent = '⚙️ Will create Nova Poshta account on first package';
-                                statusEl.className = 'text-muted';
-                            }
-
-                            // ... rest of client selection ...
-                        });
-                    </script>
-
                     <hr>
 
                     <!-- Recipient Section -->
@@ -116,8 +95,7 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Name *</label>
                             <input type="text" class="form-control" id="recipient_name" required
-                                placeholder="Переверзєв Василь" pattern="[А-ЯЁІЇЄҐа-яёіїєґ\s'-]+"
-                                title="Only Ukrainian/Cyrillic letters allowed">
+                                placeholder="Переверзєв Василь" title="Only Ukrainian/Cyrillic letters allowed">
                             <small class="text-muted">Тільки українські літери (only Cyrillic)</small>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -163,10 +141,10 @@
                     <h6 class="mb-3"><i class="bi bi-box-seam"></i> Package Details</h6>
 
                     <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Weight (kg) *</label>
-                            <input type="number" class="form-control" id="pkg_weight" required step="0.1" min="0.1"
-                                max="2000" placeholder="1.5">
+                        <div class="col-md-3">
+                            <label for="total_weight" class="form-label">Total Weight (all seats)</label>
+                            <input type="text" class="form-control" id="total_weight" readonly>
+                            <small class="text-muted">Sum of all seat weights</small>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Seats</label>
@@ -178,6 +156,23 @@
                                 placeholder="500">
                         </div>
                     </div>
+
+                    <div id="dimensionsSection" class="mt-3">
+                        <h6 class="mb-3">
+                            <i class="bi bi-box-seam"></i> Package Dimensions
+                            <small class="text-muted">(Length × Width × Height in cm, Weight in kg)</small>
+                        </h6>
+
+                        <div id="seatsContainer">
+                            <!-- Seat are handled dynamically by js -->
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addSeatBtn">
+                            <i class="bi bi-plus-circle"></i> Add Seat
+                        </button>
+                    </div>
+
+                    <hr>
 
                     <div class="mb-3">
                         <label class="form-label">Cargo Type</label>
@@ -210,7 +205,6 @@
                             </select>
                         </div>
                     </div>
-
                     <!-- Estimated Cost Display -->
                     <div class="alert alert-info">
                         <small><i class="bi bi-info-circle"></i> Estimated shipping cost: ~80 UAH (calculated by Nova
@@ -234,395 +228,716 @@
 
 <!-- JavaScript for Package Creation -->
 <script>
-    // API key dropdown change handler 
-    document.addEventListener('DOMContentLoaded', function () {
-        const modal = document.getElementById('createPackageModal');
-        const form = document.getElementById('createPackageForm');
-        const cityInput = document.getElementById('recipient_city_search');
-        const cityResults = document.getElementById('city_results');
-        const warehouseSelect = document.getElementById('recipient_warehouse');
-        const quickClientSelect = document.getElementById('quick_client');
+    if (!window.packageModalInitialized) { // Prevent duplicate initialization
+        window.packageModalInitialized = true;
 
-        let citySearchTimeout;
+        // API key dropdown change handler 
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('createPackageModal');
+            const form = document.getElementById('createPackageForm');
+            const cityInput = document.getElementById('recipient_city_search');
+            const cityResults = document.getElementById('city_results');
+            const warehouseSelect = document.getElementById('recipient_warehouse');
+            const quickClientSelect = document.getElementById('quick_client');
+            const senderCitySearchEdit = document.getElementById('sender_city_search_edit');
+            const senderCityResultsEdit = document.getElementById('sender_city_results_edit');
 
-        // Load recent clients when modal opens
-        modal.addEventListener('show.bs.modal', function () {
-            loadRecentClients();
-        });
+            let senderCitySearchTimeout;
+            let citySearchTimeout;
 
-        // Load recent clients
-        function loadRecentClients() {
-            fetch('/api/clients/recent')
-                .then(r => r.json())
-                .then(clients => {
-                    quickClientSelect.innerHTML = '<option value="">-- New client --</option>';
-                    clients.forEach(client => {
-                        const opt = document.createElement('option');
-                        opt.value = client.id;
-                        opt.textContent = `${client.name} (${client.phone})`;
-                        opt.dataset.client = JSON.stringify(client);
-                        quickClientSelect.appendChild(opt);
+            // Cyrillic validation for recipient name and contact person
+            form.addEventListener('submit', function (e) {
+                const contactInput = document.getElementById('recipient_contact');
+                if (!contactInput) return; // Skip if field doesn't exist
+
+                const contactValue = contactInput.value.trim();
+
+                // Simple Cyrillic check (works in JS, not in HTML pattern)
+                const cyrillicPattern = /^[\u0400-\u04FF\s'\-]+$/;
+
+                if (contactValue && !cyrillicPattern.test(contactValue)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    alert('Контактна особа: використовуйте тільки кириличні символи');
+                    contactInput.focus();
+                    return false;
+                }
+            });
+
+            // ============================================
+            // PACKAGE SEATS MANAGEMENT
+            // ============================================            
+
+            const seatsField = document.getElementById('pkg_seats');
+            let pendingCopyData = null;
+
+            // ============================================
+            // CORE FUNCTIONS
+            // ============================================
+
+            // Update field to match DOM seat count
+            function updateSeatsCount() {
+                seatsField.value = document.querySelectorAll('.seat-dimensions').length;
+            }
+
+            // Update total weight display
+            function updateTotalWeight() {
+                let totalWeight = 0;
+
+                // Sum all seat weights
+                document.querySelectorAll('.seat-weight').forEach(input => {
+                    const weight = parseFloat(input.value) || 0;
+                    totalWeight += weight;
+                });
+
+                const totalWeightValue = totalWeight > 0 ? totalWeight.toFixed(2) : '';
+
+                // Update total_weight field
+                const totalField = document.getElementById('total_weight');
+                if (totalField) {
+                    totalField.value = totalWeightValue;
+                }
+            }
+
+            // Add new seat (optionally with copied data)
+            function addSeat(copyFrom = null) {
+                const seatNum = document.querySelectorAll('.seat-dimensions').length + 1;
+
+                const seatHtml = `
+        <div class="seat-dimensions border rounded p-3 mb-3" data-seat="${seatNum}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>Seat ${seatNum}</strong>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary copy-seat" 
+                            title="Copy this seat">
+                        <i class="bi bi-files"></i> Copy
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger delete-seat" 
+                            title="Delete this seat">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-2">
+                    <label class="form-label">Weight (kg)</label>
+                    <input type="number" class="form-control seat-weight" 
+                           step="0.1" min="0.1" value="${copyFrom ? copyFrom.weight : ''}" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Length (cm)</label>
+                    <input type="number" class="form-control seat-length" 
+                           step="1" min="1" value="${copyFrom ? copyFrom.length : ''}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Width (cm)</label>
+                    <input type="number" class="form-control seat-width" 
+                           step="1" min="1" value="${copyFrom ? copyFrom.width : ''}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Height (cm)</label>
+                    <input type="number" class="form-control seat-height" 
+                           step="1" min="1" value="${copyFrom ? copyFrom.height : ''}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Volumetric Weight (kg)</label>
+                    <input type="text" class="form-control seat-volumetric" readonly 
+                           placeholder="Auto-calculated">
+                    <small class="text-muted">L×W×H÷4000</small>
+                </div>
+            </div>
+        </div>
+    `;
+
+                document.getElementById('seatsContainer').insertAdjacentHTML('beforeend', seatHtml);
+                attachSeatListeners();
+
+                // Calculate volumetric for copied data
+                if (copyFrom && copyFrom.length && copyFrom.width && copyFrom.height) {
+                    const newSeat = document.querySelector(`.seat-dimensions[data-seat="${seatNum}"]`);
+                    if (newSeat) calculateVolumetric(newSeat);
+                }
+            }
+
+            // Show/hide delete buttons (hide if only 1 seat)
+            function updateDeleteButtons() {
+                const seats = document.querySelectorAll('.seat-dimensions');
+                const showDelete = seats.length > 1;
+
+                seats.forEach(seat => {
+                    const deleteBtn = seat.querySelector('.delete-seat');
+                    if (deleteBtn) {
+                        deleteBtn.style.display = showDelete ? 'inline-block' : 'none';
+                    }
+                });
+            }
+
+            // Auto-calculate volumetric weight for a seat
+            function calculateVolumetric(seat) {
+                const length = parseFloat(seat.querySelector('.seat-length').value) || 0;
+                const width = parseFloat(seat.querySelector('.seat-width').value) || 0;
+                const height = parseFloat(seat.querySelector('.seat-height').value) || 0;
+
+                if (length && width && height) {
+                    const volumetric = (length * width * height) / 4000;
+                    seat.querySelector('.seat-volumetric').value = volumetric.toFixed(2);
+                } else {
+                    seat.querySelector('.seat-volumetric').value = '';
+                }
+            }
+
+
+            // Attach dimension input listeners to all seats
+            function attachSeatListeners() {
+                document.querySelectorAll('.seat-dimensions').forEach(seat => {
+                    // Dimension inputs for volumetric calc
+                    const dims = seat.querySelectorAll('.seat-length, .seat-width, .seat-height');
+                    dims.forEach(input => {
+                        input.removeEventListener('input', handleDimensionInput);
+                        input.addEventListener('input', handleDimensionInput);
                     });
-                })
-                .catch(err => console.error('Failed to load clients:', err));
-        }
 
-        // Quick client selection
-        quickClientSelect.addEventListener('change', function () {
-            if (!this.value) return;
-
-            const client = JSON.parse(this.options[this.selectedIndex].dataset.client);
-            document.getElementById('recipient_name').value = client.name;
-            document.getElementById('recipient_phone').value = client.phone;
-
-            if (client.city && client.city_ref) {
-                document.getElementById('recipient_city_search').value = client.city;
-                document.getElementById('recipient_city_ref').value = client.city_ref;
-                setTimeout(() => loadWarehouses(client.city_ref, client.warehouse_ref), 500);
+                    // Weight input for total weight
+                    const weightInput = seat.querySelector('.seat-weight');
+                    if (weightInput) {
+                        weightInput.removeEventListener('input', updateTotalWeight);
+                        weightInput.addEventListener('input', updateTotalWeight);
+                    }
+                });
             }
 
-            if (client.contact_person) {
-                document.getElementById('recipient_contact').value = client.contact_person;
+            function handleDimensionInput(e) {
+                const seat = e.target.closest('.seat-dimensions');
+                if (seat) calculateVolumetric(seat);
             }
-        });
 
-        // City search with autocomplete
-        cityInput.addEventListener('input', function () {
-            clearTimeout(citySearchTimeout);
-            const query = this.value.trim();
+            // ============================================
+            // EVENT LISTENERS
+            // ============================================
 
-            if (query.length < 2) {
+            // User manually types seat count
+            seatsField.addEventListener('change', function () {
+                const targetCount = parseInt(this.value) || 1;
+                const currentCount = document.querySelectorAll('.seat-dimensions').length;
+
+                if (targetCount > currentCount) {
+                    // Add seats
+                    for (let i = currentCount; i < targetCount; i++) {
+                        addSeat();
+                    }
+                } else if (targetCount < currentCount) {
+                    // Remove excess seats
+                    const seats = document.querySelectorAll('.seat-dimensions');
+                    for (let i = currentCount - 1; i >= targetCount; i--) {
+                        seats[i].remove();
+                    }
+                    // Renumber remaining
+                    document.querySelectorAll('.seat-dimensions').forEach((seat, index) => {
+                        seat.dataset.seat = index + 1;
+                        seat.querySelector('strong').textContent = `Seat ${index + 1}`;
+                    });
+                }
+
+                updateDeleteButtons();
+                updateTotalWeight();
+            });
+
+
+            // Add Seat button
+            document.getElementById('addSeatBtn').addEventListener('click', function () {
+                addSeat();
+                updateSeatsCount();
+                updateDeleteButtons();
+                updateTotalWeight();
+            });
+
+            // Copy Seat button (delegated)
+            document.addEventListener('click', function (e) {
+                if (e.target.closest('.copy-seat')) {
+                    const seat = e.target.closest('.seat-dimensions');
+
+                    // Extract data
+                    pendingCopyData = {
+                        weight: seat.querySelector('.seat-weight').value,
+                        length: seat.querySelector('.seat-length').value,
+                        width: seat.querySelector('.seat-width').value,
+                        height: seat.querySelector('.seat-height').value
+                    };
+
+                    // Add new seat with copied data
+                    addSeat(pendingCopyData);
+                    pendingCopyData = null;
+
+                    updateSeatsCount();
+                    updateDeleteButtons();
+                    updateTotalWeight();
+                }
+            });
+
+            // Delete Seat button (delegated)
+            document.addEventListener('click', function (e) {
+                if (e.target.closest('.delete-seat')) {
+                    const seats = document.querySelectorAll('.seat-dimensions');
+                    if (seats.length <= 1) return; // Keep at least 1
+
+                    e.target.closest('.seat-dimensions').remove();
+
+                    // Renumber
+                    document.querySelectorAll('.seat-dimensions').forEach((seat, index) => {
+                        seat.dataset.seat = index + 1;
+                        seat.querySelector('strong').textContent = `Seat ${index + 1}`;
+                    });
+
+                    updateSeatsCount();
+                    updateDeleteButtons();
+                    updateTotalWeight();
+                }
+            });
+
+            // Reset seats when modal opens
+            modal.addEventListener('show.bs.modal', function () {
+                // Clear all seats
+                document.getElementById('seatsContainer').innerHTML = '';
+
+                // Add fresh Seat 1 
+                addSeat();
+
+                // Reset fields
+                seatsField.value = 1;
+                updateTotalWeight();
+
+                // Load clients
+                loadRecentClients();
+            });
+
+            // ============================================
+            // END SEATS MANAGEMENT
+            // ============================================            
+
+            // Load recent clients when modal opens
+            modal.addEventListener('show.bs.modal', function () {
+                loadRecentClients();
+            });
+
+            // Load recent clients
+            function loadRecentClients() {
+                fetch('/api/clients/recent')
+                    .then(r => r.json())
+                    .then(clients => {
+                        quickClientSelect.innerHTML = '<option value="">-- New client --</option>';
+                        clients.forEach(client => {
+                            const opt = document.createElement('option');
+                            opt.value = client.id;
+                            opt.textContent = `${client.name} (${client.phone})`;
+                            opt.dataset.client = JSON.stringify(client);
+                            quickClientSelect.appendChild(opt);
+                        });
+                    })
+                    .catch(err => console.error('Failed to load clients:', err));
+            }
+
+            // Quick client selection (MERGED - only one listener)
+            quickClientSelect.addEventListener('change', function () {
+                if (!this.value) return;
+
+                const client = JSON.parse(this.options[this.selectedIndex].dataset.client);
+
+                // Fill form fields
+                document.getElementById('recipient_name').value = client.name;
+                document.getElementById('recipient_phone').value = client.phone;
+
+                if (client.city && client.city_ref) {
+                    document.getElementById('recipient_city_search').value = client.city;
+                    document.getElementById('recipient_city_ref').value = client.city_ref;
+                    setTimeout(() => loadWarehouses(client.city_ref, client.warehouse_ref), 500);
+                }
+
+                if (client.contact_person) {
+                    document.getElementById('recipient_contact').value = client.contact_person;
+                }
+
+                // Show UUID status
+                const statusEl = document.getElementById('client_uuid_status');
+                if (statusEl) {
+                    if (client.has_uuids) {
+                        statusEl.textContent = '✅ Client has Nova Poshta account (fast creation)';
+                        statusEl.className = 'text-success';
+                    } else {
+                        statusEl.textContent = '⚙️ Will create Nova Poshta account on first package';
+                        statusEl.className = 'text-muted';
+                    }
+                }
+            });
+
+            // City search with autocomplete
+            cityInput.addEventListener('input', function () {
+                clearTimeout(citySearchTimeout);
+                const query = this.value.trim();
+
+                if (query.length < 2) {
+                    cityResults.style.display = 'none';
+                    return;
+                }
+
+                citySearchTimeout = setTimeout(() => {
+                    fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
+                        .then(r => r.json())
+                        .then(cities => {
+                            if (cities.error) {
+                                showToast('danger', cities.error);
+                                return;
+                            }
+
+                            cityResults.innerHTML = '';
+                            if (cities.length === 0) {
+                                cityResults.style.display = 'none';
+                                return;
+                            }
+
+                            cities.forEach(city => {
+                                const item = document.createElement('a');
+                                item.href = '#';
+                                item.className = 'list-group-item list-group-item-action';
+                                item.textContent = city.name;
+                                item.onclick = (e) => {
+                                    e.preventDefault();
+                                    selectCity(city);
+                                };
+                                cityResults.appendChild(item);
+                            });
+
+                            cityResults.style.display = 'block';
+                        })
+                        .catch(err => {
+                            console.error('City search failed:', err);
+                            showToast('danger', 'Failed to search cities');
+                        });
+                }, 300);
+            });
+
+            // Select city
+            function selectCity(city) {
+                cityInput.value = city.name;
+                document.getElementById('recipient_city_ref').value = city.ref;
                 cityResults.style.display = 'none';
+
+                // Load warehouses for selected city
+                loadWarehouses(city.ref);
+            }
+
+            // Load warehouses for city
+            function loadWarehouses(cityRef, selectedWarehouseRef = null) {
+                warehouseSelect.innerHTML = '<option value="">Loading...</option>';
+                warehouseSelect.disabled = true;
+
+                fetch(`/api/warehouses/${cityRef}`)
+                    .then(r => r.json())
+                    .then(warehouses => {
+                        if (warehouses.error) {
+                            showToast('danger', warehouses.error);
+                            warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                            return;
+                        }
+
+                        warehouseSelect.innerHTML = '<option value="">Select warehouse...</option>';
+                        warehouses.forEach(wh => {
+                            const opt = document.createElement('option');
+                            opt.value = wh.ref;
+                            opt.textContent = wh.description;
+                            opt.dataset.number = wh.number;
+                            if (selectedWarehouseRef && wh.ref === selectedWarehouseRef) {
+                                opt.selected = true;
+                            }
+                            warehouseSelect.appendChild(opt);
+                        });
+
+                        warehouseSelect.disabled = false;
+                    })
+                    .catch(err => {
+                        console.error('Failed to load warehouses:', err);
+                        warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                    });
+            }
+
+            // Hide city results when clicking outside (merged with sender city results listener)
+            document.addEventListener('click', function (e) {
+                // Hide recipient city results
+                if (cityInput && cityResults &&
+                    !cityInput.contains(e.target) && !cityResults.contains(e.target)) {
+                    cityResults.style.display = 'none';
+                }
+
+                // Hide sender city results (edit mode)
+                if (senderCitySearchEdit && senderCityResultsEdit &&
+                    !senderCitySearchEdit.contains(e.target) && !senderCityResultsEdit.contains(e.target)) {
+                    senderCityResultsEdit.style.display = 'none';
+                }
+            });
+
+            // Create Package button
+            document.getElementById('createPackageBtn').addEventListener('click', function () {
+                if (validateForm(false)) {  // Validate for create
+                    submitPackage('create');
+                }
+            });
+
+            // Save Draft button
+            document.getElementById('saveDraftBtn').addEventListener('click', function () {
+                // No validation for draft - just save
+                submitPackage('draft');
+            });
+
+            // Form validation
+            function validateForm(isDraft) {
+                const form = document.getElementById('createPackageForm');
+
+                // For draft - no validation needed
+                if (isDraft) {
+                    return true;
+                }
+
+                // For create - check all required fields
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return false;
+                }
+
+                // Check hidden UUID fields
+                if (!document.getElementById('recipient_city_ref').value) {
+                    alert('Please select a city from the dropdown');
+                    return false;
+                }
+
+                if (!document.getElementById('recipient_warehouse').value) {
+                    alert('Please select a warehouse');
+                    return false;
+                }
+
+                return true;
+            }
+
+            // Submit package
+            async function submitPackage(action) {
+                try {
+                    const form = document.getElementById('createPackageForm');
+                    const apiKeySelect = document.getElementById('pkg_api_key');
+
+                    console.log('🔍 apiKeySelect:', apiKeySelect);
+                    console.log('🔍 apiKeySelect.value:', apiKeySelect?.value);
+                    console.log('🔍 apiKeySelect.selectedIndex:', apiKeySelect?.selectedIndex);
+
+                    if (!apiKeySelect) {
+                        alert('Error: API key select element not found');
+                        return;
+                    }
+
+                    if (!apiKeySelect.value) {
+                        alert('Please select an API key');
+                        return;
+                    }
+
+                    console.log('✅ API Key ID:', apiKeySelect.value);
+
+                    // Collect seats data
+                    const seats = [];
+                    document.querySelectorAll('.seat-dimensions').forEach((seat, index) => {
+                        const weightInput = seat.querySelector('.seat-weight');
+                        const weight = weightInput ? weightInput.value : null;
+
+                        if (weight) {
+                            seats.push({
+                                weight: weight,
+                                length: seat.querySelector('.seat-length')?.value || '10',
+                                width: seat.querySelector('.seat-width')?.value || '10',
+                                height: seat.querySelector('.seat-height')?.value || '10'
+                            });
+                        }
+                    });
+
+                    console.log('📦 Collected seats:', seats);
+
+                    // Build package data
+                    const packageData = {
+                        action: action,
+                        api_key_id: document.getElementById('pkg_api_key')?.value,
+                        recipient_name: document.getElementById('recipient_name')?.value || '',
+                        recipient_phone: document.getElementById('recipient_phone')?.value || '',
+                        recipient_city: document.getElementById('recipient_city_search')?.value || '',
+                        recipient_city_ref: document.getElementById('recipient_city_ref')?.value || '',
+                        recipient_warehouse: warehouseSelect?.options[warehouseSelect.selectedIndex]?.text || '',
+                        recipient_warehouse_ref: warehouseSelect?.value || '',
+                        recipient_contact: document.getElementById('recipient_contact')?.value || '',
+                        description: document.getElementById('pkg_description')?.value || 'Посилка',
+                        cost: document.getElementById('pkg_cost')?.value || '0',
+                        weight: document.getElementById('total_weight')?.value || '0',
+                        payment_method: document.getElementById('payment_method')?.value || 'Cash',
+                        payer_type: document.getElementById('payer_type')?.value || 'Recipient',
+                        cargo_type: document.getElementById('cargo_type')?.value || 'Parcel',
+                        save_client: document.getElementById('save_client')?.checked || false
+                    };
+
+                    // ADD SEATS AS SEPARATE FIELDS (seat_1_weight, seat_1_length, etc)
+                    seats.forEach((seat, index) => {
+                        const num = index + 1;
+                        packageData[`seat_${num}_weight`] = seat.weight;
+                        packageData[`seat_${num}_length`] = seat.length;
+                        packageData[`seat_${num}_width`] = seat.width;
+                        packageData[`seat_${num}_height`] = seat.height;
+                    });
+
+                    // Get sender data                    
+                    if (apiKeySelect) {
+                        const selectedOption = apiKeySelect.options[apiKeySelect.selectedIndex];
+                        packageData.sender_city_ref = selectedOption.dataset.cityRef || '';
+                        packageData.sender_ref = selectedOption.dataset.counterpartyRef || '';
+                        packageData.sender_warehouse_ref = selectedOption.dataset.warehouseRef || '';
+                        packageData.sender_contact_ref = selectedOption.dataset.contactRef || '';
+                        packageData.sender_phone = selectedOption.dataset.senderPhone || '';
+                        packageData.sender_name = selectedOption.text || '';
+                        packageData.sender_city = selectedOption.dataset.cityName || '';
+                    }
+
+                    console.log('📨 Sending to backend:', packageData);
+
+                    // Send to backend
+                    const response = await fetch('/package/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(packageData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert(result.message || 'Package created!');
+                        const modalElement = document.getElementById('createPackageModal');
+                        const modal = bootstrap.Modal.getInstance(modalElement);
+                        if (modal) modal.hide();
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (result.error || 'Unknown error'));
+                    }
+
+                } catch (error) {
+                    console.error('❌ Error:', error);
+                    alert('Failed: ' + error.message);
+                }
+            }
+
+            // City search for editable sender
+            senderCitySearchEdit.addEventListener('input', function () {
+                clearTimeout(senderCitySearchTimeout);
+                const query = this.value.trim();
+
+                if (query.length < 2) {
+                    senderCityResultsEdit.style.display = 'none';
+                    return;
+                }
+
+                senderCitySearchTimeout = setTimeout(() => {
+                    fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
+                        .then(r => r.json())
+                        .then(cities => {
+                            senderCityResultsEdit.innerHTML = '';
+                            if (cities.length === 0) {
+                                senderCityResultsEdit.style.display = 'none';
+                                return;
+                            }
+
+                            cities.forEach(city => {
+                                const item = document.createElement('a');
+                                item.href = '#';
+                                item.className = 'list-group-item list-group-item-action';
+                                item.textContent = city.name;
+                                item.onclick = (e) => {
+                                    e.preventDefault();
+                                    selectEditSenderCity(city);
+                                };
+                                senderCityResultsEdit.appendChild(item);
+                            });
+
+                            senderCityResultsEdit.style.display = 'block';
+                        });
+                }, 300);
+            });
+        });
+        // Show/populate sender section when API key is selected
+        document.getElementById('pkg_api_key').addEventListener('change', function () {
+            const selectedOption = this.options[this.selectedIndex];
+            const senderSection = document.getElementById('senderSection');
+
+            if (!this.value) {
+                senderSection.style.display = 'none';
                 return;
             }
 
-            citySearchTimeout = setTimeout(() => {
-                fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
-                    .then(r => r.json())
-                    .then(cities => {
-                        if (cities.error) {
-                            showToast('danger', cities.error);
-                            return;
-                        }
+            // Get sender data from API key
+            const cityName = selectedOption.dataset.cityName;
+            const warehouseName = selectedOption.dataset.warehouseName;
+            const cityRef = selectedOption.dataset.cityRef;
+            const warehouseRef = selectedOption.dataset.warehouseRef;
 
-                        cityResults.innerHTML = '';
-                        if (cities.length === 0) {
-                            cityResults.style.display = 'none';
-                            return;
-                        }
+            // Show sender section
+            senderSection.style.display = 'block';
 
-                        cities.forEach(city => {
-                            const item = document.createElement('a');
-                            item.href = '#';
-                            item.className = 'list-group-item list-group-item-action';
-                            item.textContent = city.name;
-                            item.onclick = (e) => {
-                                e.preventDefault();
-                                selectCity(city);
-                            };
-                            cityResults.appendChild(item);
-                        });
+            // Populate readonly fields
+            document.getElementById('sender_city_display').value = cityName || 'Not configured';
+            document.getElementById('sender_warehouse_display').value = warehouseName || 'Not configured';
+            document.getElementById('pkg_sender_city_ref').value = cityRef || '';
+            document.getElementById('pkg_sender_warehouse_ref').value = warehouseRef || '';
 
-                        cityResults.style.display = 'block';
-                    })
-                    .catch(err => {
-                        console.error('City search failed:', err);
-                        showToast('danger', 'Failed to search cities');
-                    });
-            }, 300);
+            // Reset edit mode
+            document.getElementById('edit_sender').checked = false;
+            document.getElementById('editableSenderFields').style.display = 'none';
         });
 
-        // Select city
-        function selectCity(city) {
-            cityInput.value = city.name;
-            document.getElementById('recipient_city_ref').value = city.ref;
-            cityResults.style.display = 'none';
+        // Toggle editable sender fields
+        document.getElementById('edit_sender').addEventListener('change', function () {
+            const editFields = document.getElementById('editableSenderFields');
+            const readonlyRow = document.querySelector('#senderSection .row:first-child');  // The readonly row
 
-            // Load warehouses for selected city
-            loadWarehouses(city.ref);
+            if (this.checked) {
+                readonlyRow.style.display = 'none';
+                editFields.style.display = 'block';
+            } else {
+                readonlyRow.style.display = 'flex';
+                editFields.style.display = 'none';
+            }
+        });
+
+        function selectEditSenderCity(city) {
+            senderCitySearchEdit.value = city.name;
+            document.getElementById('pkg_sender_city_ref').value = city.ref;
+            senderCityResultsEdit.style.display = 'none';
+            loadSenderWarehousesEdit(city.ref);
         }
 
-        // Load warehouses for city
-        function loadWarehouses(cityRef, selectedWarehouseRef = null) {
-            warehouseSelect.innerHTML = '<option value="">Loading...</option>';
-            warehouseSelect.disabled = true;
+        function loadSenderWarehousesEdit(cityRef, selectedRef = null) {
+            const whSelect = document.getElementById('sender_warehouse_edit');
+            whSelect.innerHTML = '<option value="">Loading...</option>';
+            whSelect.disabled = true;
 
             fetch(`/api/warehouses/${cityRef}`)
                 .then(r => r.json())
                 .then(warehouses => {
-                    if (warehouses.error) {
-                        showToast('danger', warehouses.error);
-                        warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
-                        return;
-                    }
-
-                    warehouseSelect.innerHTML = '<option value="">Select warehouse...</option>';
+                    whSelect.innerHTML = '<option value="">Select warehouse...</option>';
                     warehouses.forEach(wh => {
                         const opt = document.createElement('option');
                         opt.value = wh.ref;
                         opt.textContent = wh.description;
-                        opt.dataset.number = wh.number;
-                        if (selectedWarehouseRef && wh.ref === selectedWarehouseRef) {
+                        if (selectedRef && wh.ref === selectedRef) {
                             opt.selected = true;
                         }
-                        warehouseSelect.appendChild(opt);
+                        whSelect.appendChild(opt);
                     });
-
-                    warehouseSelect.disabled = false;
-                })
-                .catch(err => {
-                    console.error('Failed to load warehouses:', err);
-                    warehouseSelect.innerHTML = '<option value="">Error loading warehouses</option>';
+                    whSelect.disabled = false;
                 });
         }
 
-        // Hide city results when clicking outside
-        document.addEventListener('click', function (e) {
-            if (!cityInput.contains(e.target) && !cityResults.contains(e.target)) {
-                cityResults.style.display = 'none';
-            }
+        // Update warehouse ref when changed
+        document.getElementById('sender_warehouse_edit').addEventListener('change', function () {
+            document.getElementById('pkg_sender_warehouse_ref').value = this.value;
         });
-
-        // Create Package button
-        document.getElementById('createPackageBtn').addEventListener('click', function () {
-            if (validateForm(false)) {  // Validate for create
-                submitPackage('create');
-            }
-        });
-
-        // Save Draft button
-        document.getElementById('saveDraftBtn').addEventListener('click', function () {
-            // No validation for draft - just save
-            submitPackage('draft');
-        });
-
-        // Form validation
-        function validateForm(isDraft) {
-            const form = document.getElementById('createPackageForm');
-
-            // For draft - no validation needed
-            if (isDraft) {
-                return true;
-            }
-
-            // For create - check all required fields
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return false;
-            }
-
-            // Check hidden UUID fields
-            if (!document.getElementById('recipient_city_ref').value) {
-                alert('Please select a city from the dropdown');
-                return false;
-            }
-
-            if (!document.getElementById('recipient_warehouse').value) {
-                alert('Please select a warehouse');
-                return false;
-            }
-
-            return true;
-        }
-
-        // Submit package
-        function submitPackage(action) {
-            const apiKeySelect = document.getElementById('pkg_api_key');
-            const form = document.getElementById('createPackageForm');
-
-            if (!apiKeySelect.value) {
-                alert('Please select an API key');
-                return;
-            }
-
-            const selectedOption = apiKeySelect.options[apiKeySelect.selectedIndex];
-
-            const data = {
-                action: action,
-                api_key_id: apiKeySelect.value,
-
-                // Sender data (from API key - need to get these UUIDs from Nova Poshta)
-                sender_ref: selectedOption.dataset.counterpartyRef || '',
-                city_sender_ref: document.getElementById('pkg_sender_city_ref').value,
-                sender_address_ref: document.getElementById('pkg_sender_warehouse_ref').value,
-                contact_sender_ref: (selectedOption.dataset.contactRef && selectedOption.dataset.contactRef !== 'None') ? selectedOption.dataset.contactRef : '',
-                sender_phone: selectedOption.dataset.senderPhone || '',
-
-                // Recipient data
-                recipient_name: document.getElementById('recipient_name').value,
-                recipient_phone: document.getElementById('recipient_phone').value,
-                recipient_city: cityInput.value,
-                city_recipient_ref: document.getElementById('recipient_city_ref').value,
-                recipient_warehouse: warehouseSelect.options[warehouseSelect.selectedIndex]?.textContent || '',
-                recipient_address_ref: warehouseSelect.value,
-                recipient_contact: document.getElementById('recipient_contact').value || document.getElementById('recipient_name').value,
-
-                // Package data
-                weight: document.getElementById('pkg_weight').value,
-                seats: document.getElementById('pkg_seats').value || 1,
-                cost: document.getElementById('pkg_cost').value,
-                cargo_type: document.getElementById('pkg_cargo_type').value,
-                description: document.getElementById('pkg_description').value,
-                payer_type: document.getElementById('pkg_payer').value,
-                payment_method: document.getElementById('pkg_payment').value,
-
-                // Save client checkbox
-                save_client: document.getElementById('save_client').checked
-            };
-
-            const btn = action === 'create' ? document.getElementById('createPackageBtn') : document.getElementById('saveDraftBtn');
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
-
-            fetch('/package/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-                .then(r => r.json())
-                .then(result => {
-                    if (result.success) {
-                        showToast('success', result.message);
-                        bootstrap.Modal.getInstance(modal).hide();
-                        form.reset();
-                        setTimeout(() => location.reload(), 1500);
-                    } else {
-                        showToast('danger', result.message || result.error);
-                    }
-                })
-                .catch(err => {
-                    showToast('danger', 'Error: ' + err.message);
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = originalHtml;
-                });
-        }
-    });
-    // Show/populate sender section when API key is selected
-    document.getElementById('pkg_api_key').addEventListener('change', function () {
-        const selectedOption = this.options[this.selectedIndex];
-        const senderSection = document.getElementById('senderSection');
-
-        if (!this.value) {
-            senderSection.style.display = 'none';
-            return;
-        }
-
-        // Get sender data from API key
-        const cityName = selectedOption.dataset.cityName;
-        const warehouseName = selectedOption.dataset.warehouseName;
-        const cityRef = selectedOption.dataset.cityRef;
-        const warehouseRef = selectedOption.dataset.warehouseRef;
-
-        // Show sender section
-        senderSection.style.display = 'block';
-
-        // Populate readonly fields
-        document.getElementById('sender_city_display').value = cityName || 'Not configured';
-        document.getElementById('sender_warehouse_display').value = warehouseName || 'Not configured';
-        document.getElementById('pkg_sender_city_ref').value = cityRef || '';
-        document.getElementById('pkg_sender_warehouse_ref').value = warehouseRef || '';
-
-        // Reset edit mode
-        document.getElementById('edit_sender').checked = false;
-        document.getElementById('editableSenderFields').style.display = 'none';
-    });
-
-    // Toggle editable sender fields
-    document.getElementById('edit_sender').addEventListener('change', function () {
-        const editFields = document.getElementById('editableSenderFields');
-        const readonlyRow = document.querySelector('#senderSection .row:first-child');  // The readonly row
-
-        if (this.checked) {
-            readonlyRow.style.display = 'none';
-            editFields.style.display = 'block';
-        } else {
-            readonlyRow.style.display = 'flex';
-            editFields.style.display = 'none';
-        }
-    });
-
-    // City search for editable sender
-    let senderCitySearchTimeout;
-    const senderCitySearchEdit = document.getElementById('sender_city_search_edit');
-    const senderCityResultsEdit = document.getElementById('sender_city_results_edit');
-
-    senderCitySearchEdit.addEventListener('input', function () {
-        clearTimeout(senderCitySearchTimeout);
-        const query = this.value.trim();
-
-        if (query.length < 2) {
-            senderCityResultsEdit.style.display = 'none';
-            return;
-        }
-
-        senderCitySearchTimeout = setTimeout(() => {
-            fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
-                .then(r => r.json())
-                .then(cities => {
-                    senderCityResultsEdit.innerHTML = '';
-                    if (cities.length === 0) {
-                        senderCityResultsEdit.style.display = 'none';
-                        return;
-                    }
-
-                    cities.forEach(city => {
-                        const item = document.createElement('a');
-                        item.href = '#';
-                        item.className = 'list-group-item list-group-item-action';
-                        item.textContent = city.name;
-                        item.onclick = (e) => {
-                            e.preventDefault();
-                            selectEditSenderCity(city);
-                        };
-                        senderCityResultsEdit.appendChild(item);
-                    });
-
-                    senderCityResultsEdit.style.display = 'block';
-                });
-        }, 300);
-    });
-
-    function selectEditSenderCity(city) {
-        senderCitySearchEdit.value = city.name;
-        document.getElementById('pkg_sender_city_ref').value = city.ref;
-        senderCityResultsEdit.style.display = 'none';
-        loadSenderWarehousesEdit(city.ref);
     }
-
-    function loadSenderWarehousesEdit(cityRef, selectedRef = null) {
-        const whSelect = document.getElementById('sender_warehouse_edit');
-        whSelect.innerHTML = '<option value="">Loading...</option>';
-        whSelect.disabled = true;
-
-        fetch(`/api/warehouses/${cityRef}`)
-            .then(r => r.json())
-            .then(warehouses => {
-                whSelect.innerHTML = '<option value="">Select warehouse...</option>';
-                warehouses.forEach(wh => {
-                    const opt = document.createElement('option');
-                    opt.value = wh.ref;
-                    opt.textContent = wh.description;
-                    if (selectedRef && wh.ref === selectedRef) {
-                        opt.selected = true;
-                    }
-                    whSelect.appendChild(opt);
-                });
-                whSelect.disabled = false;
-            });
-    }
-
-    // Update warehouse ref when changed
-    document.getElementById('sender_warehouse_edit').addEventListener('change', function () {
-        document.getElementById('pkg_sender_warehouse_ref').value = this.value;
-    });
-
-    // Hide city results when clicking outside
-    document.addEventListener('click', function (e) {
-        if (!senderCitySearchEdit.contains(e.target) && !senderCityResultsEdit.contains(e.target)) {
-            senderCityResultsEdit.style.display = 'none';
-        }
-    });
 </script>
