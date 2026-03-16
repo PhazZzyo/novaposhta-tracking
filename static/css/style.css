@@ -200,11 +200,56 @@ code,
     background: rgba(227, 6, 19, .03);
 }
 
+.warehouse-compact {
+    font-size: 0.875rem;
+    cursor: help;
+    line-height: 1.5;
+}
+
+.warehouse-compact i {
+    color: #6c757d;
+}
+
 /* ---------- Badges ---------- */
 .badge {
     padding: .35em .7em;
     font-weight: 500;
     border-radius: 6px;
+}
+
+.status-badge {
+    white-space: normal !important;
+    text-align: left;
+    line-height: 1.5;
+    padding: 0.5rem 0.75rem;
+    word-wrap: break-word;
+    display: inline-block;
+    min-width: 220px;
+    max-width: 400px;
+}
+
+/* Mobile: full width */
+@media (max-width: 576px) {
+    .status-badge {
+        display: block;
+        width: 100%;
+        min-width: unset;
+    }
+}
+
+/* Prevent icon from shrinking */
+.status-badge i {
+    margin-right: 0.25rem;
+    flex-shrink: 0;
+}
+
+td .status-badge {
+    display: block;
+    width: 100%;
+}
+
+.status-column {
+    width: 280px;
 }
 
 /* ---------- Pagination ---------- */

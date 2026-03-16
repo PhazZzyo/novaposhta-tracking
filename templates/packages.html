@@ -41,7 +41,7 @@
                     <th></th>
                     <th>{{ t('sender') }}</th>
                     <th>{{ t('recipient') }}</th>
-                    <th>{{ t('status') }}</th>
+                    <th class="status-column">{{ t('status') }}</th>
                     <th>{{ t('created') }}</th>
                     <th>{{ t('author') }}</th>
                     <th class="text-end">{{ t('actions') }}</th>
@@ -75,15 +75,26 @@
                             pkg.recipient_contact != pkg.recipient_name %}<span class="text-muted fw-normal">({{
                                 pkg.recipient_contact }})</span>{% endif %}</div><small class="text-muted"><i
                                 class="bi bi-geo-alt"></i> {{ pkg.recipient_city or '-' }}</small>{% if
-                        pkg.recipient_warehouse %}<br><small class="text-muted">{{ pkg.recipient_warehouse }}</small>{%
+                        pkg.recipient_warehouse %}<br>
+                        <div class="warehouse-compact" data-bs-toggle="tooltip" data-bs-placement="top"
+                            title="{{ pkg.recipient_warehouse }}">
+                            <i class="bi bi-building"></i>
+                            <strong>{{ pkg.recipient_warehouse|warehouse_number }}</strong>
+                            <span class="d-none d-md-inline text-muted">
+                                — {{ pkg.recipient_warehouse|warehouse_street|truncate(30) }}
+                            </span>
+                        </div>
+                        {%
                         endif %}
                     </td>
-                    <td>{% if pkg.is_delivered %}<span class="badge bg-secondary"><i class="bi bi-check-circle"></i> {{
+                    <td>{% if pkg.is_delivered %}<span class="badge bg-secondary status-badge"><i
+                                class="bi bi-check-circle"></i> {{
                             pkg.status }}</span>
-                        {% elif pkg.status_code in ['7', '8'] %}<span class="badge bg-success"><i
+                        {% elif pkg.status_code in ['7', '8'] %}<span class="badge bg-success status-badge"><i
                                 class="bi bi-box-seam"></i> {{ pkg.status }}</span>
-                        {% elif pkg.status_code == '9' %}<span class="badge bg-success"><i class="bi bi-box-seam"></i>
-                            {{ pkg.status }}</span>{% else %}<span class="badge bg-warning text-dark"><i
+                        {% elif pkg.status_code == '9' %}<span class="badge bg-success status-badge"><i
+                                class="bi bi-box-seam"></i>
+                            {{ pkg.status }}</span>{% else %}<span class="badge bg-warning text-dark status-badge"><i
                                 class="bi bi-hourglass-split"></i> {{ pkg.status }}</span>{% endif %}</td>
                     <td>{{ format_date(pkg.date_created) }}<br>
                         <small class="text-muted">{{ format_time(pkg.date_created) }}</small>
@@ -264,6 +275,14 @@
 
 {% block extra_js %}
 <script>
+    // Initialize Bootstrap tooltips
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
+
     // Load package details into modal
     function loadPackage(id) {
         const b = document.getElementById('pkgModalBody');

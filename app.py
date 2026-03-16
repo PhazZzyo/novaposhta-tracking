@@ -71,6 +71,42 @@ def inject_timezone_helpers():
         'format_time': format_time
     }
 
+# Custom filters for warehouse display
+@app.template_filter('warehouse_number')
+def warehouse_number(warehouse_name):
+    """Extract warehouse number"""
+    import re
+    if not warehouse_name:
+        return ''
+    
+    # Extract a number following "Відділення" (e.g. "Відділення №123")
+    match = re.search(r'Відділення\s*№?\s*(\d+)', warehouse_name, re.IGNORECASE)
+    if match:
+        return f"№{match.group(1)}"
+    
+    # Extract a number following "Поштомат" (e.g. "Поштомат №123")
+    match = re.search(r'Поштомат.*?№?\s*(\d+)', warehouse_name, re.IGNORECASE)
+    if match:
+        return f"Поштомат №{match.group(1)}"
+    
+    return warehouse_name[:20]
+
+@app.template_filter('warehouse_street')
+def warehouse_street(warehouse_name):
+    """Extract street address"""
+    if not warehouse_name:
+        return ''
+    
+    # Get part after colon
+    if ':' in warehouse_name:
+        return warehouse_name.split(':', 1)[1].strip()
+    
+    # Get part in parentheses
+    if '(' in warehouse_name:
+        return warehouse_name.split('(')[0].strip()
+    
+    return warehouse_name
+
 # Translations
 TRANSLATIONS = {
     'en': {
