@@ -3,7 +3,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Create Package</h5>
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>{{ t('create_package') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -11,9 +11,9 @@
 
                     <!-- API Key Selection -->
                     <div class="mb-3">
-                        <label class="form-label">API Key *</label>
+                        <label class="form-label">{{ t('api_key') }} *</label>
                         <select class="form-select" id="pkg_api_key" required>
-                            <option value="">Select API key...</option>
+                            <option value="">{{ t('select_api_key') }}...</option>
                             {% for key in api_keys %}
                             <option value="{{ key.id }}" {% if not key.sender_contact_ref %}disabled{% endif %}
                                 data-sender-phone="{{ key.sender_identifier or '' }}"
@@ -23,8 +23,8 @@
                                 data-contact-ref="{{ key.sender_contact_ref or '' }}"
                                 data-city-name="{{ key.sender_city_name or '' }}"
                                 data-warehouse-name="{{ key.sender_warehouse_name or '' }}">
-                                {{ key.label }}{% if not key.sender_contact_ref %} (incomplete UUIDs - fetch required){%
-                                endif %}
+                                {{ key.label }}{% if not key.sender_contact_ref %} ({{ t('incomplete_uuids') }}){% endif
+                                %}
                             </option>
                             {% endfor %}
                         </select>
@@ -32,16 +32,16 @@
 
                     <div id="senderSection" style="display:none;">
                         <hr>
-                        <h6 class="mb-3"><i class="bi bi-building"></i> Sender (Your Company)</h6>
+                        <h6 class="mb-3"><i class="bi bi-building"></i> {{ t('sender_your_company') }}</h6>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Sender City</label>
+                                <label class="form-label">{{ t('sender_city') }}</label>
                                 <input type="text" class="form-control" id="sender_city_display" readonly>
                                 <input type="hidden" id="pkg_sender_city_ref">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Sender Warehouse</label>
+                                <label class="form-label">{{ t('sender_warehouse') }}</label>
                                 <input type="text" class="form-control" id="sender_warehouse_display" readonly>
                                 <input type="hidden" id="pkg_sender_warehouse_ref">
                             </div>
@@ -50,7 +50,7 @@
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="edit_sender">
                             <label class="form-check-label" for="edit_sender">
-                                Edit sender location for this package only
+                                {{ t('edit_sender_location_once') }}
                             </label>
                         </div>
 
@@ -58,16 +58,16 @@
                         <div id="editableSenderFields" style="display:none;">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Sender City *</label>
+                                    <label class="form-label">{{ t('sender_city') }} *</label>
                                     <input type="text" class="form-control" id="sender_city_search_edit"
-                                        placeholder="Start typing..." autocomplete="off">
+                                        placeholder="{{ t('start_typing') }}..." autocomplete="off">
                                     <div id="sender_city_results_edit" class="list-group position-absolute"
                                         style="z-index:1050; max-height:200px; overflow-y:auto; display:none;"></div>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Sender Warehouse *</label>
+                                    <label class="form-label">{{ t('sender_warehouse') }} *</label>
                                     <select class="form-select" id="sender_warehouse_edit" disabled>
-                                        <option value="">Select city first...</option>
+                                        <option value="">{{ t('select_city_first') }}...</option>
                                     </select>
                                 </div>
                             </div>
@@ -78,80 +78,81 @@
 
                     <!-- Client Quick Select -->
                     <div class="mb-3">
-                        <label class="form-label">Quick Select Client</label>
+                        <label class="form-label">{{ t('quick_select_client') }}</label>
                         <select class="form-select" id="quick_client">
-                            <option value="">-- New client --</option>
+                            <option value="">-- {{ t('new_client') }} --</option>
                         </select>
-                        <small class="text-muted">Select from recent clients or create new</small>
+                        <small class="text-muted">{{ t('select_recent_or_create') }}</small>
                         <small class="text-muted" id="client_uuid_status"></small>
                     </div>
 
                     <hr>
 
                     <!-- Recipient Section -->
-                    <h6 class="mb-3"><i class="bi bi-person"></i> Recipient</h6>
+                    <h6 class="mb-3"><i class="bi bi-person"></i> {{ t('recipient') }}</h6>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Name *</label>
+                            <label class="form-label">{{ t('recipient_name') }} *</label>
                             <input type="text" class="form-control" id="recipient_name" required
-                                placeholder="Переверзєв Василь" title="Only Ukrainian/Cyrillic letters allowed">
-                            <small class="text-muted">Тільки українські літери (only Cyrillic)</small>
+                                placeholder="Переверзєв Василь" title="{{ t('cyrillic_only') }}">
+                            <small class="text-muted">{{ t('cyrillic_only_hint') }}</small>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Phone *</label>
+                            <label class="form-label">{{ t('recipient_phone') }} *</label>
                             <input type="tel" class="form-control" id="recipient_phone" required pattern="0[0-9]{9}"
-                                maxlength="10" placeholder="0XXXXXXXXX" title="10 digits starting with 0">
+                                maxlength="10" placeholder="0XXXXXXXXX" title="{{ t('phone_10_digits') }}">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">City *</label>
+                            <label class="form-label">{{ t('recipient_city') }} *</label>
                             <input type="text" class="form-control" id="recipient_city_search" required
-                                placeholder="Start typing city name..." autocomplete="off">
+                                placeholder="{{ t('start_typing_city') }}..." autocomplete="off">
                             <input type="hidden" id="recipient_city_ref">
                             <div id="city_results" class="list-group position-absolute"
                                 style="z-index:1000; max-height:200px; overflow-y:auto; display:none;"></div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Warehouse *</label>
+                            <label class="form-label">{{ t('recipient_warehouse') }} *</label>
                             <select class="form-select" id="recipient_warehouse" required disabled>
-                                <option value="">Select city first...</option>
+                                <option value="">{{ t('select_city_first') }}...</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Contact Person</label>
-                        <input type="text" class="form-control" id="recipient_contact" placeholder="Optional">
-                        <small class="text-muted">If different from recipient name</small>
+                        <label class="form-label">{{ t('recipient_contact') }}</label>
+                        <input type="text" class="form-control" id="recipient_contact"
+                            placeholder="{{ t('optional') }}">
+                        <small class="text-muted">{{ t('if_different_from_recipient') }}</small>
                     </div>
 
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="save_client">
                         <label class="form-check-label" for="save_client">
-                            Save this client for quick selection later
+                            {{ t('save_client_for_later') }}
                         </label>
                     </div>
 
                     <hr>
 
                     <!-- Package Details -->
-                    <h6 class="mb-3"><i class="bi bi-box-seam"></i> Package Details</h6>
+                    <h6 class="mb-3"><i class="bi bi-box-seam"></i> {{ t('package_details') }}</h6>
 
                     <div class="row">
                         <div class="col-md-3">
-                            <label for="total_weight" class="form-label">Total Weight (all seats)</label>
+                            <label for="total_weight" class="form-label">{{ t('total_weight_all_seats') }}</label>
                             <input type="text" class="form-control" id="total_weight" readonly>
-                            <small class="text-muted">Sum of all seat weights</small>
+                            <small class="text-muted">{{ t('sum_of_seats') }}</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Seats</label>
+                            <label class="form-label">{{ t('seats') }}</label>
                             <input type="number" class="form-control" id="pkg_seats" value="1" min="1" max="100">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Declared Value (UAH) *</label>
+                            <label class="form-label">{{ t('declared_value_uah') }} *</label>
                             <input type="number" class="form-control" id="pkg_cost" required step="0.01" min="0"
                                 placeholder="500">
                         </div>
@@ -159,67 +160,66 @@
 
                     <div id="dimensionsSection" class="mt-3">
                         <h6 class="mb-3">
-                            <i class="bi bi-box-seam"></i> Package Dimensions
-                            <small class="text-muted">(Length × Width × Height in cm, Weight in kg)</small>
+                            <i class="bi bi-box-seam"></i> {{ t('package_dimensions') }}
+                            <small class="text-muted">({{ t('dimensions_hint') }})</small>
                         </h6>
 
                         <div id="seatsContainer">
-                            <!-- Seat are handled dynamically by js -->
+                            <!-- Seats are handled dynamically by js -->
                         </div>
 
                         <button type="button" class="btn btn-sm btn-outline-primary" id="addSeatBtn">
-                            <i class="bi bi-plus-circle"></i> Add Seat
+                            <i class="bi bi-plus-circle"></i> {{ t('add_seat') }}
                         </button>
                     </div>
 
                     <hr>
 
                     <div class="mb-3">
-                        <label class="form-label">Cargo Type</label>
+                        <label class="form-label">{{ t('cargo_type') }}</label>
                         <select class="form-select" id="pkg_cargo_type">
-                            <option value="Parcel">Parcel</option>
-                            <option value="Cargo">Cargo</option>
-                            <option value="Documents">Documents</option>
+                            <option value="Parcel">{{ t('parcel') }}</option>
+                            <option value="Cargo">{{ t('cargo') }}</option>
+                            <option value="Documents">{{ t('documents') }}</option>
                         </select>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Description *</label>
+                        <label class="form-label">{{ t('description') }} *</label>
                         <textarea class="form-control" id="pkg_description" required rows="2"
-                            placeholder="Brief description of package contents"></textarea>
+                            placeholder="{{ t('package_description_placeholder') }}"></textarea>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Payer</label>
+                            <label class="form-label">{{ t('payer_type') }}</label>
                             <select class="form-select" id="pkg_payer">
-                                <option value="Recipient">Recipient</option>
-                                <option value="Sender">Sender</option>
+                                <option value="Recipient">{{ t('recipient') }}</option>
+                                <option value="Sender">{{ t('sender') }}</option>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Payment Method</label>
+                            <label class="form-label">{{ t('payment_method') }}</label>
                             <select class="form-select" id="pkg_payment">
-                                <option value="Cash">Cash</option>
-                                <option value="NonCash">Non-Cash</option>
+                                <option value="Cash">{{ t('cash') }}</option>
+                                <option value="NonCash">{{ t('non_cash') }}</option>
                             </select>
                         </div>
                     </div>
                     <!-- Estimated Cost Display -->
                     <div class="alert alert-info">
-                        <small><i class="bi bi-info-circle"></i> Estimated shipping cost: ~80 UAH (calculated by Nova
-                            Poshta)</small>
+                        <small><i class="bi bi-info-circle"></i> {{ t('estimated_shipping_calculated') }}</small>
                     </div>
 
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('cancel') }}</button>
                 <button type="button" class="btn btn-outline-primary" id="saveDraftBtn">
-                    <i class="bi bi-save"></i> Save as Draft
+                    <i class="bi bi-save"></i> {{ t('save_as_draft') }}
                 </button>
                 <button type="button" class="btn btn-primary" id="createPackageBtn">
-                    <i class="bi bi-send"></i> Create Package
+                    <i class="bi bi-send"></i> {{ t('create_package') }}
                 </button>
             </div>
         </div>
@@ -228,6 +228,14 @@
 
 <!-- JavaScript for Package Creation -->
 <script>
+    // Translation
+    const t = {
+        pleaseSelectApiKey: "{{ t('please_select_api_key') }}",
+        pleaseSelectCity: "{{ t('please_select_city') }}",
+        packageCreated: "{{ t('package_created') }}",
+        errorCreatingPackage: "{{ t('error_creating_package') }}"
+    };
+
     if (!window.packageModalInitialized) { // Prevent duplicate initialization
         window.packageModalInitialized = true;
 
@@ -306,14 +314,14 @@
                 const seatHtml = `
         <div class="seat-dimensions border rounded p-3 mb-3" data-seat="${seatNum}">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <strong>Seat ${seatNum}</strong>
+                <strong>{{ t('seat') }} ${seatNum}</strong>
                 <div>
                     <button type="button" class="btn btn-sm btn-outline-secondary copy-seat" 
                             title="Copy this seat">
-                        <i class="bi bi-files"></i> Copy
+                        <i class="bi bi-files"></i> {{ t('copy_seat') }}
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-danger delete-seat" 
-                            title="Delete this seat">
+                            title="{{ t('delete_seat')}}">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -321,30 +329,30 @@
             
             <div class="row">
                 <div class="col-md-2">
-                    <label class="form-label">Weight (kg)</label>
+                    <label class="form-label">{{ t('seat_weight') }}</label>
                     <input type="number" class="form-control seat-weight" 
                            step="0.1" min="0.1" value="${copyFrom ? copyFrom.weight : ''}" required>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Length (cm)</label>
+                    <label class="form-label">{{ t('seat_length') }}</label>
                     <input type="number" class="form-control seat-length" 
                            step="1" min="1" value="${copyFrom ? copyFrom.length : ''}">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Width (cm)</label>
+                    <label class="form-label">{{ t('seat_width') }}</label>
                     <input type="number" class="form-control seat-width" 
                            step="1" min="1" value="${copyFrom ? copyFrom.width : ''}">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Height (cm)</label>
+                    <label class="form-label">{{ t('seat_height') }}</label>
                     <input type="number" class="form-control seat-height" 
                            step="1" min="1" value="${copyFrom ? copyFrom.height : ''}">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Volumetric Weight (kg)</label>
+                    <label class="form-label">{{ t('volumetric_weight')}}</label>
                     <input type="text" class="form-control seat-volumetric" readonly 
-                           placeholder="Auto-calculated">
-                    <small class="text-muted">L×W×H÷4000</small>
+                           placeholder="{{ t('auto_calculated')}}">
+                    <small class="text-muted">{{ t('volumetric_weight_example')}}</small>
                 </div>
             </div>
         </div>
@@ -525,7 +533,7 @@
                 fetch('/api/clients/recent')
                     .then(r => r.json())
                     .then(clients => {
-                        quickClientSelect.innerHTML = '<option value="">-- New client --</option>';
+                        quickClientSelect.innerHTML = `<option value="">{{ t('new_client_spaceholder') }}</option>`;
                         clients.forEach(client => {
                             const opt = document.createElement('option');
                             opt.value = client.id;

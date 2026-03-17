@@ -7,6 +7,7 @@ import os
 import json
 import requests
 import pytz
+from translations import TRANSLATIONS
 from datetime import datetime, timedelta
 from functools import wraps
 from io import BytesIO
@@ -71,6 +72,13 @@ def inject_timezone_helpers():
         'format_time': format_time
     }
 
+# Translation
+def t(key):
+    lang = session.get('lang', 'uk')
+    return TRANSLATIONS.get(lang, {}).get(key, key)
+
+app.jinja_env.globals.update(t=t)
+
 # Custom filters for warehouse display
 @app.template_filter('warehouse_number')
 def warehouse_number(warehouse_name):
@@ -106,81 +114,6 @@ def warehouse_street(warehouse_name):
         return warehouse_name.split('(')[0].strip()
     
     return warehouse_name
-
-# Translations
-TRANSLATIONS = {
-    'en': {
-        'dashboard': 'Dashboard', 'packages': 'Packages', 'settings': 'Settings',
-        'logout': 'Logout', 'change_password': 'Change Password', 'admin': 'Admin',
-        'users': 'Users', 'api_keys': 'API Keys', 'add_api_key': 'Add API Key',
-        'add_user': 'Add User', 'total_packages': 'Total Packages', 'active': 'Active',
-        'ready_pickup': 'Ready for Pickup', 'delivering': 'Delivering', 'delivered': 'Delivered',
-        'last_sync': 'Last Sync', 'status': 'Status', 'actions': 'Actions', 'sync': 'Sync',
-        'view': 'View', 'never': 'Never', 'incoming': 'Incoming', 'outgoing': 'Outgoing',
-        'all': 'All', 'filters': 'Filters', 'direction': 'Direction', 'date_range': 'Date Range',
-        'apply': 'Apply', 'reset': 'Reset', 'cancel': 'Cancel', 'sender': 'Sender',
-        'recipient': 'Recipient', 'created': 'Created', 'save': 'Save Settings',
-        'theme': 'Theme', 'light': 'Light', 'dark': 'Dark', 'view_mode': 'View Mode',
-        'table': 'Table', 'cards': 'Cards', 'items_per_page': 'Items per page',
-        'notify_pickup': 'Notify when ready for pickup', 'track_apis': 'Tracked API Keys',
-        'language': 'Language', 'timezone': 'Timezone', 'package_details': 'Package Details',
-        'view_invoice': 'View Invoice', 'package_cost': 'Package Cost',
-        'shipping_cost': 'Shipping Cost', 'weight': 'Weight',
-        'planned_delivery': 'Planned Delivery', 'description': 'Description',
-        'no_packages': 'No packages found', 'no_api_keys': 'No API keys configured',
-        'syncing': 'Syncing...', 'sync_success': 'Sync successful!', 'error': 'Error',
-        'label': 'Label', 'sender_identifier': 'Sender Identifier', 'auto_sync': 'Auto Sync',
-        'username': 'Username', 'full_name': 'Full Name', 'role': 'Role',
-        'password': 'Password', 'new_password': 'New Password',
-        'confirm_password': 'Confirm Password', 'current_password': 'Current Password',
-        'save_changes': 'Save Changes', 'create_user': 'Create User',
-        'inactive': 'Inactive', 'last_login': 'Last Login', 'edit': 'Edit',
-        'login': 'Login', 'remember_me': 'Remember me (30 days)', 'sign_in': 'Sign In',
-        'tracking_system': 'Package Tracking System',
-        'no_account': 'No account? Contact administrator.',
-        'days_1': 'Last 24 hours', 'days_5': 'Last 5 days', 'days_7': 'Last 7 days',
-        'days_14': 'Last 14 days', 'days_30': 'Last 30 days', 'all_time': 'All time',
-        'sync_all': 'Sync All', 'import_api_keys': 'Import', 'export_api_keys': 'Export',
-        'author': 'Author',
-    },
-    'uk': {
-        'dashboard': 'Головна', 'packages': 'Посилки', 'settings': 'Налаштування',
-        'logout': 'Вихід', 'change_password': 'Змінити пароль', 'admin': 'Адмін',
-        'users': 'Користувачі', 'api_keys': 'API Ключі', 'add_api_key': 'Додати API',
-        'add_user': 'Додати користувача', 'total_packages': 'Усього посилок',
-        'active': 'Активні', 'ready_pickup': 'Готові до отримання',
-        'delivering': 'Доставляються', 'delivered': 'Доставлені',
-        'last_sync': 'Остання синхронізація', 'status': 'Статус', 'actions': 'Дії',
-        'sync': 'Синхронізувати', 'view': 'Переглянути', 'never': 'Ніколи',
-        'incoming': 'Вхідні', 'outgoing': 'Вихідні', 'all': 'Усі',
-        'filters': 'Фільтри', 'direction': 'Напрямок', 'date_range': 'Період',
-        'apply': 'Застосувати', 'reset': 'Скинути', 'cancel': 'Скасувати',
-        'sender': 'Відправник', 'recipient': 'Отримувач', 'created': 'Створено',
-        'save': 'Зберегти', 'theme': 'Тема', 'light': 'Світла', 'dark': 'Темна',
-        'view_mode': 'Режим перегляду', 'table': 'Таблиця', 'cards': 'Картки',
-        'items_per_page': 'Елементів на сторінці',
-        'notify_pickup': 'Сповіщати при готовності', 'track_apis': 'Відстежувані API',
-        'language': 'Мова', 'timezone': 'Часовий пояс',
-        'package_details': 'Деталі посилки', 'view_invoice': 'Переглянути накладну',
-        'package_cost': 'Вартість', 'shipping_cost': 'Доставка', 'weight': 'Вага',
-        'planned_delivery': 'Планова доставка', 'description': 'Опис',
-        'no_packages': 'Посилок не знайдено', 'no_api_keys': 'API ключі відсутні',
-        'syncing': 'Синхронізація...', 'sync_success': 'Успішно!', 'error': 'Помилка',
-        'label': 'Назва', 'sender_identifier': 'Ідентифікатор',
-        'auto_sync': 'Авто синхронізація', 'username': 'Логін',
-        'full_name': "Повне ім'я", 'role': 'Роль', 'password': 'Пароль',
-        'new_password': 'Новий пароль', 'confirm_password': 'Підтвердити',
-        'current_password': 'Поточний пароль', 'save_changes': 'Зберегти зміни',
-        'create_user': 'Створити', 'inactive': 'Неактивний',
-        'last_login': 'Останній вхід', 'edit': 'Редагувати', 'login': 'Вхід',
-        'remember_me': "Запам'ятати (30 днів)", 'sign_in': 'Увійти',
-        'tracking_system': 'Система відстеження', 'no_account': 'Зверніться до адміна.',
-        'days_1': '24 години', 'days_5': '5 днів', 'days_7': '7 днів',
-        'days_14': '14 днів', 'days_30': '30 днів', 'all_time': 'Весь час',
-        'sync_all': 'Синхр. все', 'import_api_keys': 'Імпорт', 'export_api_keys': 'Експорт',
-        'author': 'Автор',
-    }
-}
 
 def t(key):
     lang = current_user.language if current_user.is_authenticated else session.get('language', 'uk')
