@@ -47,6 +47,23 @@ def utc_to_local(dt):
 
 app.jinja_env.filters['local_time'] = utc_to_local
 
+# Invoice visibility helper
+def can_view_invoice(package):
+    """Invoice available only for in-transit packages with real TTN"""
+    if not package.tracking_number or package.tracking_number.startswith('DRAFT-'):
+        return False
+    
+    # Check for draft/failed/deleted status codes    
+    if package.status_code in ['draft', 'failed', 'deleted', '2']:
+        return False
+    
+    if package.is_delivered:
+        return False
+    
+    return True
+
+app.jinja_env.globals.update(can_view_invoice=can_view_invoice)
+
 # TIME CONTEXT PROCESSOR
 @app.context_processor
 def inject_timezone_helpers():
@@ -1538,7 +1555,7 @@ def delete_package(package_id):
         return redirect(url_for('packages'))
     
     # Only allow deleting drafts and failed packages
-    if pkg.draft_status not in ['draft', 'failed']:        
+    if pkg.draft_status not in ['draft', 'failed'] and pkg.status_code != '2':
         flash('Only draft or failed packages can be deleted', 'warning')
         return redirect(url_for('packages'))
     

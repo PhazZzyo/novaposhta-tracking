@@ -17,8 +17,7 @@ TRANSLATIONS = {
         'table': 'Table', 'cards': 'Cards', 'items_per_page': 'Items per page',
         'notify_pickup': 'Notify when ready for pickup', 'track_apis': 'Tracked API Keys',
         'language': 'Language', 'timezone': 'Timezone', 'package_details': 'Package Details',
-        'view_invoice': 'View Invoice', 'package_cost': 'Package Cost',
-        'shipping_cost': 'Shipping Cost', 'weight': 'Weight',
+        'package_cost': 'Package Cost', 'shipping_cost': 'Shipping Cost', 'weight': 'Weight',
         'planned_delivery': 'Planned Delivery', 'description': 'Description',
         'no_packages': 'No packages found', 'no_api_keys': 'No API keys configured',
         'syncing': 'Syncing...', 'sync_success': 'Sync successful!', 'error': 'Error',
@@ -66,6 +65,10 @@ TRANSLATIONS = {
         'dimensions_hint': 'Length × Width × Height in cm, Weight in kg',
         'package_description_placeholder': 'Brief description of package contents',
         'estimated_shipping_calculated': 'Estimated shipping cost: ~80 UAH (calculated by Nova Poshta)',
+        'view_invoice': 'View Invoice',
+        'delete_draft': 'Delete draft',
+        'remove_deleted_package': 'Remove deleted package',
+        'invoice_not_available_reason': 'Invoice only available for packages in transit',
 
         # Package Creation Modal
         'create_package': 'Create Package',
@@ -180,8 +183,7 @@ TRANSLATIONS = {
         'items_per_page': 'Елементів на сторінці',
         'notify_pickup': 'Сповіщати при готовності', 'track_apis': 'Відстежувані API',
         'language': 'Мова', 'timezone': 'Часовий пояс',
-        'package_details': 'Деталі посилки', 'view_invoice': 'Переглянути накладну',
-        'package_cost': 'Вартість', 'shipping_cost': 'Доставка', 'weight': 'Вага',
+        'package_details': 'Деталі посилки', 'package_cost': 'Вартість', 'shipping_cost': 'Доставка', 'weight': 'Вага',
         'planned_delivery': 'Планова доставка', 'description': 'Опис',
         'no_packages': 'Посилок не знайдено', 'no_api_keys': 'API ключі відсутні',
         'syncing': 'Синхронізація...', 'sync_success': 'Успішно!', 'error': 'Помилка',
@@ -229,6 +231,10 @@ TRANSLATIONS = {
         'dimensions_hint': 'Довжина × Ширина × Висота в см, Вага в кг',
         'package_description_placeholder': 'Короткий опис вмісту посилки',
         'estimated_shipping_calculated': 'Орієнтовна вартість доставки: ~80 грн (розраховується Новою Поштою)',
+        'view_invoice': 'Переглянути накладну',
+        'delete_draft': 'Видалити чернетку',
+        'remove_deleted_package': 'Видалити посилку',
+        'invoice_not_available_reason': 'Накладна доступна тільки для посилок у дорозі',
 
         # Package Creation Modal
         'create_package': 'Створити посилку',

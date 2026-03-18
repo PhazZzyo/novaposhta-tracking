@@ -50,7 +50,8 @@
     </div>
     <div class="col-sm-6">
         <p class="text-muted small mb-1">{{ t('planned_delivery') }}</p>
-        <p class="mb-0">{{ package.planned_delivery_date.strftime('%d.%m.%Y') if package.planned_delivery_date else '-' }}</p>
+        <p class="mb-0">{{ package.planned_delivery_date.strftime('%d.%m.%Y') if package.planned_delivery_date else '-'
+            }}</p>
     </div>
 </div>
 <div class="mb-3">
@@ -67,8 +68,24 @@
     <p class="mb-0">{{ package.description }}</p>
 </div>
 {% endif %}
-<a href="{{ url_for('package_invoice', tracking_number=package.tracking_number) }}"
-   class="btn btn-outline-primary" target="_blank">
+
+<!-- Invoice Button - Smart Enable/Disable -->
+{% if can_view_invoice(package) %}
+<a href="{{ url_for('package_invoice', tracking_number=package.tracking_number) }}" class="btn btn-outline-primary"
+    target="_blank">
     <i class="bi bi-file-pdf me-2"></i>{{ t('view_invoice') }}
 </a>
+{% else %}
+<button class="btn btn-outline-secondary" disabled title="{{ t('invoice_not_available_reason') }}">
+    <i class="bi bi-file-pdf me-2"></i>{{ t('view_invoice') }}
+</button>
+{% endif %}
+
+<!-- Delete button for deleted packages (StatusCode 2) - author or admin only -->
+{% if package.status_code == '2' and (package.author == current_user.username or current_user.is_admin) %}
+<button class="btn btn-outline-danger ms-2" onclick="confirmDelete({{ package.id }}, '{{ package.tracking_number }}')"
+    title="{{ t('remove_deleted_package') }}">
+    <i class="bi bi-trash me-2"></i>{{ t('remove_deleted_package') }}
+</button>
+{% endif %}
 {% endif %}

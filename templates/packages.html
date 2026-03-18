@@ -110,23 +110,37 @@
                         <span class="badge bg-secondary">web</span>
                         {% endif %}
                     </td>
-
                     <td class="text-end text-nowrap">
                         {% if pkg.draft_status in ['draft', 'failed'] %}
                         <!-- Draft/Failed: Show delete button -->
                         <button class="btn btn-sm btn-danger"
                             onclick="confirmDelete({{ pkg.id }}, '{{ pkg.tracking_number or 'Draft #' ~ pkg.id }}')"
-                            title="Delete draft">
+                            title="{{ t('delete_draft') }}">
                             <i class="bi bi-trash"></i>
                         </button>
+                        {% elif pkg.status_code == '2' %}
+                        <!-- Deleted in Nova Poshta (StatusCode 2): Show delete button for author/admin -->
+                        {% if pkg.author == current_user.username or current_user.is_admin %}
+                        <button class="btn btn-sm btn-danger"
+                            onclick="confirmDelete({{ pkg.id }}, '{{ pkg.tracking_number }}')"
+                            title="{{ t('remove_deleted_package') }}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% endif %}
                         {% else %}
-                        <!-- Sent package: Show invoice button -->
+                        <!-- Sent package: Show invoice button (enabled or disabled) -->
+                        {% if can_view_invoice(pkg) %}
                         <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
                             class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
                             <i class="bi bi-file-pdf"></i>
                         </a>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-secondary" disabled
+                            title="{{ t('invoice_not_available_reason') }}">
+                            <i class="bi bi-file-pdf"></i>
+                        </button>
                         {% endif %}
-
+                        {% endif %}
                         <!-- Info button (always shown) -->
                         <button class="btn btn-sm btn-primary ms-1" data-bs-toggle="modal" data-bs-target="#pkgModal"
                             onclick="loadPackage({{ pkg.id }})">
