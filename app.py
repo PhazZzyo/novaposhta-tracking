@@ -6,9 +6,9 @@ Complete with: Import/Export, Unified sync, Incoming packages, Timezone handling
 import os
 import json
 import requests
-import pytz
 from translations import TRANSLATIONS
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo, available_timezones
 from functools import wraps
 from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file
@@ -33,16 +33,21 @@ NOVA_POSHTA_API = 'https://api.novaposhta.ua/v2.0/json/'
 DEFAULT_TIMEZONE = 'Europe/Kyiv'
 
 # Timezone helper
-def get_user_timezone():
+def get_user_timezone():    
+    tz_name = DEFAULT_TIMEZONE
     if current_user.is_authenticated and current_user.timezone:
-        return pytz.timezone(current_user.timezone)
-    return pytz.timezone(DEFAULT_TIMEZONE)
+        tz_name = current_user.timezone
+    return ZoneInfo(tz_name)
 
 def utc_to_local(dt):
     if not dt:
         return None
+    
+    # If dt is naive (from DB), tell Python it's UTC
     if dt.tzinfo is None:
-        dt = pytz.utc.localize(dt)
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    # Convert to the user's local timezone
     return dt.astimezone(get_user_timezone())
 
 app.jinja_env.filters['local_time'] = utc_to_local
@@ -155,8 +160,8 @@ class User(UserMixin, db.Model):
     notify_ready_pickup = db.Column(db.Boolean, default=True)
     language = db.Column(db.String(5), default='uk')
     timezone = db.Column(db.String(50), default=DEFAULT_TIMEZONE)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_login = db.Column(db.DateTime(timezone=True))
     tracked_apis = db.relationship('UserAPITracking', back_populates='user', cascade='all, delete-orphan')
 
     def set_password(self, pw): self.password_hash = generate_password_hash(pw)
@@ -177,9 +182,9 @@ class APIKey(db.Model):
     sender_contact_name = db.Column(db.String(200))
     is_active = db.Column(db.Boolean, default=True)
     auto_sync = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    last_sync = db.Column(db.DateTime)
+    last_sync = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     packages = db.relationship('Package', back_populates='api_key', cascade='all, delete-orphan')
     trackers = db.relationship('UserAPITracking', back_populates='api_key', cascade='all, delete-orphan')
 
@@ -207,16 +212,16 @@ class Package(db.Model):
     recipient_contact = db.Column(db.String(200))
     status = db.Column(db.String(300))
     status_code = db.Column(db.String(10))
-    date_created = db.Column(db.DateTime)
+    date_created = db.Column(db.DateTime(timezone=True))
     planned_delivery_date = db.Column(db.Date)
-    actual_delivery_date = db.Column(db.DateTime)
+    actual_delivery_date = db.Column(db.DateTime(timezone=True))
     package_cost = db.Column(db.Numeric(10, 2))
     shipment_cost = db.Column(db.Numeric(10, 2))
     weight = db.Column(db.Numeric(10, 3))
     package_count = db.Column(db.Integer, default=1)
     description = db.Column(db.Text)
     is_delivered = db.Column(db.Boolean, default=False)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     raw_data = db.Column(db.JSON)
     author = db.Column(db.String(100))
     draft_status = db.Column(db.String(20))
@@ -238,8 +243,8 @@ class Client(db.Model):
     counterparty_ref = db.Column(db.String(36))
     contact_ref = db.Column(db.String(36))
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_used = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_used = db.Column(db.DateTime(timezone=True))
 
 class PackageScheme(db.Model):
     __tablename__ = 'package_schemes'
@@ -253,7 +258,7 @@ class PackageScheme(db.Model):
     package_cost = db.Column(db.Numeric(10, 2))
     description_default = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     usage_count = db.Column(db.Integer, default=0)
 
 class SyncLog(db.Model):
@@ -272,7 +277,7 @@ class SyncLog(db.Model):
     error_message = db.Column(db.Text)
     sync_summary = db.Column(db.Text)
     api_response = db.Column(db.JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -339,9 +344,8 @@ class NovaPoshtaAPI:
     def create_internet_document(self, sender_data, recipient_data, package_data):
         """Create package via Nova Poshta API - requires UUIDs for all refs"""
         
-        # Get current time in Kyiv timezone
-        kyiv_tz = pytz.timezone('Europe/Kyiv')
-        current_date = datetime.now(kyiv_tz).strftime('%d.%m.%Y')
+        # Get current date in Kyiv
+        current_date = datetime.now(ZoneInfo("Europe/Kyiv")).strftime('%d.%m.%Y')
 
         payload = {
             'PayerType': package_data.get('payer_type', 'Recipient'),
@@ -438,7 +442,7 @@ class NovaPoshtaAPI:
         }
 
     def get_status_documents(self, tracking_numbers):
-            """Fixed: API requires a list of objects"""
+            """API requires a list of objects"""
             if not tracking_numbers: return [], {}
             documents = [{'DocumentNumber': str(tn)} for tn in tracking_numbers[:100]]
             return self._post('TrackingDocument', 'getStatusDocuments', {'Documents': documents})
@@ -654,7 +658,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
                             
                             # Update delivery date if delivered
                             if pkg.is_delivered and not pkg.actual_delivery_date:
-                                pkg.actual_delivery_date = datetime.now(pytz.UTC)
+                                pkg.actual_delivery_date = datetime.now(timezone.utc)
                             
                             updated += 1
                 
@@ -680,7 +684,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
         print(f"Status update error: {e}")
     
     # Update last sync time
-    api_key_obj.last_sync = datetime.now(pytz.UTC)
+    api_key_obj.last_sync = datetime.now(timezone.utc)
     db.session.commit()
     
     return len(results) > 0, ' | '.join(results)
@@ -689,8 +693,16 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 def cooldown_ok(api_key_obj):
     if not api_key_obj.last_sync:
         return True, None
-    diff = datetime.utcnow() - api_key_obj.last_sync  # ✅ Both naive
+        
+    now = datetime.now(timezone.utc)
+    db_time = api_key_obj.last_sync
+    
+    if db_time.tzinfo is None:
+        db_time = db_time.replace(tzinfo=timezone.utc)
+        
+    diff = now - db_time
     cd = timedelta(minutes=5)
+    
     if diff < cd:
         mins = int((cd - diff).total_seconds() / 60) + 1
         return False, f'Wait {mins} min'
@@ -717,7 +729,7 @@ def login():
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.check_password(request.form.get('password')) and user.is_active:
             login_user(user, remember=bool(request.form.get('remember')))
-            user.last_login = datetime.now(pytz.UTC)
+            user.last_login = datetime.now(timezone.utc)
             db.session.commit()
             if user.must_change_password:
                 flash('Please change your password.', 'warning')
@@ -785,7 +797,7 @@ def dashboard():
     return render_template('dashboard.html', api_keys=api_keys,
                            total_packages=total, delivering_packages=delivering,
                            ready_pickup=ready, delivered_packages=delivered,
-                           now=datetime.now(pytz.timezone(DEFAULT_TIMEZONE)))
+                           now=datetime.now(ZoneInfo(DEFAULT_TIMEZONE)))
 
 @app.route('/packages')
 @login_required
@@ -935,7 +947,7 @@ def settings():
         return redirect(url_for('settings'))
     available_apis = APIKey.query.filter_by(is_active=True).all()
     tracked_api_ids = [tr.api_key_id for tr in current_user.tracked_apis]
-    timezones = pytz.common_timezones
+    timezones = sorted(list(available_timezones()))
     return render_template('settings.html', available_apis=available_apis,
                            tracked_api_ids=tracked_api_ids, timezones=timezones)
 
@@ -1092,7 +1104,7 @@ def admin_log():
     if f_type: q = q.filter(SyncLog.sync_type == f_type)
     if f_api: q = q.filter(SyncLog.api_key_id == f_api)
     if f_user: q = q.filter(SyncLog.user_id == f_user)
-    if f_days: q = q.filter(SyncLog.created_at >= datetime.now(pytz.UTC) - timedelta(days=f_days))
+    if f_days: q = q.filter(SyncLog.created_at >= datetime.now(timezone.utc) - timedelta(days=f_days))
 
     pagination = q.order_by(desc(SyncLog.created_at)).paginate(page=page, per_page=per_page, error_out=False)
     api_keys = APIKey.query.all()
@@ -1188,7 +1200,7 @@ def create_package():
                 existing_client.warehouse = data.get('recipient_warehouse')
                 existing_client.warehouse_ref = data.get('recipient_warehouse_ref')
                 existing_client.contact_person = data.get('recipient_contact')
-                existing_client.last_used = datetime.now(pytz.UTC)
+                existing_client.last_used = datetime.now(timezone.utc)
             else:
                 # Create new
                 new_client = Client(
@@ -1231,7 +1243,7 @@ def create_package():
             package_count=seats_amount,
             package_cost=float(data.get('cost')) if data.get('cost') else None,
             description=data.get('description', ''),
-            date_created=datetime.now(pytz.UTC)
+            date_created=datetime.now(timezone.utc)
         )
         db.session.add(pkg)
         db.session.commit()
@@ -1332,7 +1344,7 @@ def create_package():
                 # Save the UUIDs we just got
                 client.counterparty_ref = recipient_cp['counterparty_ref']
                 client.contact_ref = recipient_cp['contact_ref']
-                client.last_used = datetime.now(pytz.UTC)
+                client.last_used = datetime.now(timezone.utc)
                 db.session.flush()
                 
                 print(f"💾 Saved UUIDs to client: {client.name}")
