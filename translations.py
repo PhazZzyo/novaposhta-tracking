@@ -16,7 +16,7 @@ TRANSLATIONS = {
         'theme': 'Theme', 'light': 'Light', 'dark': 'Dark', 'view_mode': 'View Mode',
         'table': 'Table', 'cards': 'Cards', 'items_per_page': 'Items per page',
         'notify_pickup': 'Notify when ready for pickup', 'track_apis': 'Tracked API Keys',
-        'language': 'Language', 'timezone': 'Timezone', 'package_details': 'Package Details',
+        'language': 'Language', 'timezone': 'Timezone',
         'package_cost': 'Package Cost', 'shipping_cost': 'Shipping Cost', 'weight': 'Weight',
         'planned_delivery': 'Planned Delivery', 'description': 'Description',
         'no_packages': 'No packages found', 'no_api_keys': 'No API keys configured',
@@ -40,7 +40,9 @@ TRANSLATIONS = {
         'package_trends': 'Package Trends',
         'last_30_days': 'Last 30 Days',
         'click_legend_to_toggle': 'Click legend items to toggle visibility',
-
+        'invoice': 'Invoice',
+        'details': 'Details',
+        'close': 'Close',
 
         # API Key
         'api_key': 'API Key',
@@ -149,7 +151,8 @@ TRANSLATIONS = {
         'documents': 'Documents',
         'cargo': 'Cargo',
         
-        # Validation Messages
+        # Validation and alert Messages
+        'contact_person_cyrillic_only': 'Contact person: use only Cyrillic characters',
         'please_select_api_key': 'Please select an API key',
         'please_select_city': 'Please select a city from the dropdown',
         'please_select_warehouse': 'Please select a warehouse',
@@ -157,6 +160,11 @@ TRANSLATIONS = {
         'recipient_phone_required': 'Recipient phone is required',
         'add_at_least_one_seat': 'Please add at least one seat with weight',
         'cyrillic_only': 'Use only Cyrillic characters',
+        'error_api_key_not_found': 'Error: API key select element not found',
+        'package_created': 'Package created!',
+        'error': 'Error',
+        'unknown_error': 'Unknown error',
+        'failed': 'Failed',
         
         # Success/Error Messages
         'package_created': 'Package created successfully!',
@@ -190,7 +198,7 @@ TRANSLATIONS = {
         'items_per_page': 'Елементів на сторінці',
         'notify_pickup': 'Сповіщати при готовності', 'track_apis': 'Відстежувані API',
         'language': 'Мова', 'timezone': 'Часовий пояс',
-        'package_details': 'Деталі посилки', 'package_cost': 'Вартість', 'shipping_cost': 'Доставка', 'weight': 'Вага',
+        'package_cost': 'Вартість', 'shipping_cost': 'Доставка', 'weight': 'Вага',
         'planned_delivery': 'Планова доставка', 'description': 'Опис',
         'no_packages': 'Посилок не знайдено', 'no_api_keys': 'API ключі відсутні',
         'syncing': 'Синхронізація...', 'sync_success': 'Успішно!', 'error': 'Помилка',
@@ -213,6 +221,9 @@ TRANSLATIONS = {
         'package_trends': 'Тренди посилок',
         'last_30_days': 'Останні 30 днів',
         'click_legend_to_toggle': 'Виберіть елементи легенди, які бажаєте відобразити',
+        'invoice': 'Накладна',
+        'details': 'Детально',
+        'close': 'Закрити',
 
         # API Key
         'api_key': 'API ключ',
@@ -320,7 +331,8 @@ TRANSLATIONS = {
         'documents': 'Документи',
         'cargo': 'Вантаж',
         
-        # Validation Messages
+        # Validation and Alert Messages
+        'contact_person_cyrillic_only': 'Контактна особа: використовуйте тільки кириличні символи',
         'please_select_api_key': 'Будь ласка, оберіть API ключ',
         'please_select_city': 'Будь ласка, оберіть місто зі списку',
         'please_select_warehouse': 'Будь ласка, оберіть відділення',
@@ -328,6 +340,11 @@ TRANSLATIONS = {
         'recipient_phone_required': 'Телефон отримувача обов\'язковий',
         'add_at_least_one_seat': 'Будь ласка, додайте хоча б одне місце з вагою',
         'cyrillic_only': 'Використовуйте тільки кириличні символи',
+        'error_api_key_not_found': 'Помилка: не знайдено елемент вибору API ключа',
+        'package_created': 'Посилку створено!',
+        'error': 'Помилка',
+        'unknown_error': 'Невідома помилка',
+        'failed': 'Невдало',
         
         # Success/Error Messages
         'package_created': 'Посилку успішно створено!',

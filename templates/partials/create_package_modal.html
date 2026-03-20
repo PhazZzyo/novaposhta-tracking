@@ -229,7 +229,7 @@
 <!-- JavaScript for Package Creation -->
 <script>
     // Translation
-    const t = {
+    const pkgTranslations = {
         pleaseSelectApiKey: "{{ t('please_select_api_key') }}",
         pleaseSelectCity: "{{ t('please_select_city') }}",
         packageCreated: "{{ t('package_created') }}",
@@ -266,7 +266,7 @@
                 if (contactValue && !cyrillicPattern.test(contactValue)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    alert('Контактна особа: використовуйте тільки кириличні символи');
+                    alert("{{ t('contact_person_cyrillic_only') }}");
                     contactInput.focus();
                     return false;
                 }
@@ -713,12 +713,12 @@
 
                 // Check hidden UUID fields
                 if (!document.getElementById('recipient_city_ref').value) {
-                    alert('Please select a city from the dropdown');
+                    alert("{{ t('please_select_city') }}");
                     return false;
                 }
 
                 if (!document.getElementById('recipient_warehouse').value) {
-                    alert('Please select a warehouse');
+                    alert("{{ t('please_select_warehouse') }}");
                     return false;
                 }
 
@@ -736,16 +736,14 @@
                     console.log('🔍 apiKeySelect.selectedIndex:', apiKeySelect?.selectedIndex);
 
                     if (!apiKeySelect) {
-                        alert('Error: API key select element not found');
+                        alert("{{ t('error_api_key_not_found') }}");
                         return;
                     }
 
                     if (!apiKeySelect.value) {
-                        alert('Please select an API key');
+                        alert("{{ t('please_select_api_key') }}");
                         return;
                     }
-
-                    console.log('✅ API Key ID:', apiKeySelect.value);
 
                     // Collect seats data
                     const seats = [];
@@ -818,18 +816,18 @@
                     const result = await response.json();
 
                     if (result.success) {
-                        alert(result.message || 'Package created!');
+                        alert(result.message || "{{ t('package_created') }}");
                         const modalElement = document.getElementById('createPackageModal');
                         const modal = bootstrap.Modal.getInstance(modalElement);
                         if (modal) modal.hide();
                         location.reload();
                     } else {
-                        alert('Error: ' + (result.error || 'Unknown error'));
+                        alert("{{ t('error') }}: " + (result.error || "{{ t('unknown_error') }}"));
                     }
 
                 } catch (error) {
                     console.error('❌ Error:', error);
-                    alert('Failed: ' + error.message);
+                    alert("{{ t('failed') }}: " + error.message);
                 }
             }
 

@@ -944,6 +944,22 @@ def packages():
 						view_mode=view,
 						current_filter=filter_type)
 
+# Route to set theme via AJAX
+@app.route('/set-theme', methods=['POST'])
+@login_required
+def set_theme():
+    """Toggle user theme preference"""
+    data = request.get_json()
+    theme = data.get('theme', 'light')
+    
+    if theme in ['light', 'dark']:
+        # Update user's theme in database (not session!)
+        current_user.theme = theme
+        db.session.commit()
+        return jsonify({'success': True, 'theme': theme})
+    
+    return jsonify({'success': False, 'error': 'Invalid theme'}), 400
+
 @app.route('/package/<int:package_id>')
 @login_required
 def package_detail(package_id):

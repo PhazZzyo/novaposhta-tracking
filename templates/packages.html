@@ -157,36 +157,92 @@
         <div class="row g-3">
             {% for pkg in packages %}
             <div class="col-md-6 col-xl-4">
-                <div class="card pkg-card h-100 {% if pkg.is_delivered %}border-secondary{% endif %}">
+                <div class="card pkg-card h-100">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2">
-                            <code class="ttn">{{ pkg.tracking_number }}</code>
-                            {% if pkg.direction == 'incoming' %}<span class="badge bg-success"><i
-                                    class="bi bi-arrow-down-circle"></i> {{ t('incoming') }}</span>{% else %}<span
-                                class="badge bg-primary"><i class="bi bi-arrow-up-circle"></i> {{ t('outgoing')
-                                }}</span>{% endif %}
+                        <!-- Compact Top Fields: TTN, Direction, Date -->
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <span class="pkg-field pkg-ttn">
+                                <i class="bi bi-hash"></i>
+                                {{ pkg.tracking_number }}
+                            </span>
+                            {% if pkg.direction == 'incoming' %}
+                            <span class="badge bg-success badge-direction" title="{{ t('incoming') }}">
+                                <i class="bi bi-arrow-down-circle"></i>
+                            </span>
+                            {% else %}
+                            <span class="badge bg-primary badge-direction" title="{{ t('outgoing') }}">
+                                <i class="bi bi-arrow-up-circle"></i>
+                            </span>
+                            {% endif %}
+                            <span class="pkg-field">
+                                <i class="bi bi-calendar3"></i>
+                                {{ pkg.date_created.strftime('%d.%m') if pkg.date_created else '-' }}
+                            </span>
                         </div>
-                        <div class="mb-1"><small class="text-muted">{{ t('sender') }}</small><br><strong>{{
-                                pkg.sender_name or '-' }}</strong><small class="text-muted d-block">{{ pkg.sender_city
-                                or '' }}</small></div>
-                        <div class="mb-2"><small class="text-muted">{{ t('recipient') }}</small><br><strong>{{
-                                pkg.recipient_name or '-' }}{% if pkg.recipient_contact and pkg.recipient_contact !=
-                                pkg.recipient_name %}<span class="text-muted fw-normal">({{ pkg.recipient_contact
-                                    }})</span>{% endif %}</strong><small class="text-muted d-block">{{
-                                pkg.recipient_city or '' }}</small></div>
-                        <div class="mb-2">{% if pkg.is_delivered %}<span
-                                class="badge bg-secondary text-wrap text-start">{{ pkg.status }}</span>{% elif
-                            pkg.status_code == '9' %}<span class="badge bg-success text-wrap text-start">{{ pkg.status
-                                }}</span>{% else %}<span class="badge bg-warning text-dark text-wrap text-start">{{
-                                pkg.status }}</span>{% endif %}</div>
-                        <div class="d-flex gap-2">
-                            <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
-                                class="btn btn-sm btn-outline-primary" target="_blank"
-                                title="{{ t('view_invoice') }}"><i class="bi bi-file-pdf"></i></a>
-                            <button class="btn btn-sm btn-primary flex-grow-1" data-bs-toggle="modal"
-                                data-bs-target="#pkgModal" onclick="loadPackage({{ pkg.id }})"><i
-                                    class="bi bi-info-circle me-1"></i>{{ t('package_details') }}</button>
+                        <!-- Sender Info -->
+                        <div class="pkg-info">
+                            <div class="pkg-info-label">{{ t('sender') }}</div>
+                            <div class="pkg-info-value">{{ pkg.sender_name or '-' }}</div>
+                            {% if pkg.sender_city %}
+                            <div class="pkg-info-secondary">
+                                <i class="bi bi-geo-alt"></i> {{ pkg.sender_city }}
+                            </div>
+                            {% endif %}
                         </div>
+                        <!-- Recipient Info -->
+                        <div class="pkg-info">
+                            <div class="pkg-info-label">{{ t('recipient') }}</div>
+                            <div class="pkg-info-value">
+                                {{ pkg.recipient_name or '-' }}
+                                {% if pkg.recipient_contact and pkg.recipient_contact != pkg.recipient_name %}
+                                <span class="text-muted fw-normal">({{ pkg.recipient_contact }})</span>
+                                {% endif %}
+                            </div>
+                            {% if pkg.recipient_city %}
+                            <div class="pkg-info-secondary">
+                                <i class="bi bi-geo-alt"></i> {{ pkg.recipient_city }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="pkg-status-button">
+                            {% if pkg.is_delivered %}
+                            <span class="badge bg-secondary w-100">
+                                <i class="bi bi-check-circle-fill me-1"></i>
+                                {{ pkg.status }}
+                            </span>
+                            {% elif pkg.status_code == '9' %}
+                            <span class="badge bg-success w-100">
+                                <i class="bi bi-box-seam me-1"></i>
+                                {{ pkg.status }}
+                            </span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark w-100">
+                                <i class="bi bi-hourglass-split me-1"></i>
+                                {{ pkg.status }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- Action Buttons Footer - Centered -->
+                    <div class="pkg-actions-footer">
+                        {% if can_view_invoice(pkg) %}
+                        <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
+                            class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
+                            <i class="bi bi-file-pdf me-1"></i>
+                            {{ t('invoice') }}
+                        </a>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-secondary" disabled
+                            title="{{ t('invoice_not_available_reason') }}">
+                            <i class="bi bi-file-pdf me-1"></i>
+                            {{ t('invoice') }}
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#pkgModal"
+                            onclick="loadPackage({{ pkg.id }})">
+                            <i class="bi bi-info-circle me-1"></i>
+                            {{ t('details') }}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -220,7 +276,6 @@
     </div>
     {% endif %}
 </div>
-
 <div class="modal fade" id="filterModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -270,23 +325,20 @@
         </div>
     </div>
 </div>
-
 <div class="modal fade" id="pkgModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>{{ t('package_details') }}</h5><button
-                    type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title">
+                    <i class="bi bi-box-seam me-2"></i>{{ t('package_details') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('close') }}"></button>
             </div>
             <div class="modal-body" id="pkgModalBody">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary"></div>
-                </div>
             </div>
         </div>
     </div>
 </div>
-
 {% block extra_js %}
 <script>
     // Initialize Bootstrap tooltips
