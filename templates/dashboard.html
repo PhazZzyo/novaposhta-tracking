@@ -77,13 +77,25 @@
     </div>
 </div>
 
-<!-- Trends Chart -->
+<!-- Trends Chart (Collapsible) -->
 {% if total_packages > 0 %}
 <div class="card mb-4">
-    <div class="card-header">
-        <i class="bi bi-graph-up me-2"></i>{{ t('package_trends') }} ({{ t('last_30_days') }})
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>
+            <i class="bi bi-graph-up me-2"></i>{{ t('package_trends') }} ({{ t('last_30_days') }})
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="toggleChart()" id="chartToggleBtn">
+            <i class="bi bi-chevron-up" id="chartToggleIcon"></i>
+            <span id="chartToggleText">{{ t('hide') }}</span>
+        </button>
     </div>
-    <div class="card-body">
+    <div class="card-body" id="chartContainer">
+        <div class="mb-2">
+            <small class="text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                {{ t('click_legend_to_toggle') }}
+            </small>
+        </div>
         <canvas id="trendsChart" height="80"></canvas>
     </div>
 </div>
@@ -149,52 +161,108 @@
 </div>
 
 <!-- Chart.js Script -->
-{% if total_packages > 0 %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+    // Chart Toggle (Collapse/Expand)
+    function toggleChart() {
+        const container = document.getElementById('chartContainer');
+        const icon = document.getElementById('chartToggleIcon');
+        const text = document.getElementById('chartToggleText');
+        const isHidden = container.style.display === 'none';
+
+        container.style.display = isHidden ? 'block' : 'none';
+        icon.className = isHidden ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+        text.textContent = isHidden ? '{{ t("hide") }}' : '{{ t("show") }}';
+
+        // Save preference
+        localStorage.setItem('chartVisible', isHidden ? 'true' : 'false');
+    }
+
+    // Restore chart visibility on load
+    document.addEventListener('DOMContentLoaded', function () {
+        const chartVisible = localStorage.getItem('chartVisible');
+        if (chartVisible === 'false') {
+            toggleChart();
+        }
+    });
+
+    // Create Chart
     const ctx = document.getElementById('trendsChart');
-    new Chart(ctx, {
+    const chart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: {{ trends.dates | tojson }},
-        datasets: [
+            labels: {{ trends.dates | tojson | safe }},
+    datasets: [
         {
             label: '{{ t("in_transit") }}',
-            data: {{ trends.in_transit | tojson }},
+            data: {{ trends.in_transit | tojson | safe }},
         borderColor: '#ffc107',
         backgroundColor: 'rgba(255, 193, 7, 0.1)',
-        tension: 0.4
+        tension: 0.4,
+        hidden: false
             },
         {
             label: '{{ t("at_branch") }}',
-            data: {{ trends.at_branch | tojson }},
+            data: {{ trends.at_branch | tojson | safe }},
         borderColor: '#0dcaf0',
         backgroundColor: 'rgba(13, 202, 240, 0.1)',
-        tension: 0.4
+        tension: 0.4,
+        hidden: false
             },
         {
             label: '{{ t("completed") }}',
-            data: {{ trends.completed | tojson }},
+            data: {{ trends.completed | tojson | safe }},
         borderColor: '#198754',
         backgroundColor: 'rgba(25, 135, 84, 0.1)',
-        tension: 0.4
+        tension: 0.4,
+        hidden: false
+            },
+        {
+            label: '{{ t("incoming") }}',
+            data: {{ trends.incoming | tojson | safe }},
+        borderColor: '#6f42c1',
+        backgroundColor: 'rgba(111, 66, 193, 0.1)',
+        tension: 0.4,
+        hidden: true
+            },
+        {
+            label: '{{ t("outgoing") }}',
+            data: {{ trends.outgoing | tojson | safe }},
+        borderColor: '#d63384',
+        backgroundColor: 'rgba(214, 51, 132, 0.1)',
+        tension: 0.4,
+        hidden: true
             }
     ]
     },
-        options: {
+    options: {
         responsive: true,
-        maintainAspectRatio: true,
-        interaction: {
+            maintainAspectRatio: true,
+                interaction: {
             mode: 'index',
-            intersect: false,
+                intersect: false,
         },
         plugins: {
             legend: {
                 position: 'top',
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const ci = legend.chart;
+                        const meta = ci.getDatasetMeta(index);
+
+                        meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                        ci.update();
+
+                        saveChartPreferences(ci);
+                    },
+                labels: {
+                    usePointStyle: true,
+                        padding: 15
+                }
             },
             tooltip: {
                 callbacks: {
-                    title: function (context) {
+                    title: function(context) {
                         return context[0].label;
                     }
                 }
@@ -203,21 +271,37 @@
         scales: {
             y: {
                 beginAtZero: true,
-                ticks: {
+                    ticks: {
                     stepSize: 1
                 }
             }
         }
     }
 });
-</script>
-{% endif %}
 
-<script>
-    window.translations = {
-        syncing: "{{ t('syncing') }}",
-        syncSuccess: "{{ t('sync_success') }}",
-        syncError: "{{ t('error') }}: "
-    };
+    // Save chart line visibility preferences
+    function saveChartPreferences(chart) {
+        const preferences = {};
+        chart.data.datasets.forEach((dataset, index) => {
+            const meta = chart.getDatasetMeta(index);
+            preferences[dataset.label] = meta.hidden !== true;
+        });
+        localStorage.setItem('chartPreferences', JSON.stringify(preferences));
+    }
+
+    // Restore chart line visibility on load
+    window.addEventListener('load', function () {
+        const saved = localStorage.getItem('chartPreferences');
+        if (saved) {
+            const preferences = JSON.parse(saved);
+            chart.data.datasets.forEach((dataset, index) => {
+                if (preferences[dataset.label] !== undefined) {
+                    const meta = chart.getDatasetMeta(index);
+                    meta.hidden = !preferences[dataset.label];
+                }
+            });
+            chart.update();
+        }
+    });
 </script>
 {% endblock %}
