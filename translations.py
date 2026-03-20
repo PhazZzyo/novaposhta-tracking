@@ -34,6 +34,11 @@ TRANSLATIONS = {
         'days_14': 'Last 14 days', 'days_30': 'Last 30 days', 'all_time': 'All time',
         'sync_all': 'Sync All', 'import_api_keys': 'Import', 'export_api_keys': 'Export',
         'author': 'Author',
+        'in_transit': 'In Transit',
+        'at_branch': 'At Branch',
+        'completed': 'Completed',
+        'package_trends': 'Package Trends',
+        'last_30_days': 'Last 30 Days',
 
         # API Key
         'api_key': 'API Key',
@@ -200,6 +205,11 @@ TRANSLATIONS = {
         'days_14': '14 днів', 'days_30': '30 днів', 'all_time': 'Весь час',
         'sync_all': 'Синхр. все', 'import_api_keys': 'Імпорт', 'export_api_keys': 'Експорт',
         'author': 'Автор',
+        'in_transit': 'В дорозі',
+        'at_branch': 'У відділенні',
+        'completed': 'Доставлені',
+        'package_trends': 'Тренди посилок',
+        'last_30_days': 'Останні 30 днів',
 
         # API Key
         'api_key': 'API ключ',

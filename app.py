@@ -1,5 +1,5 @@
 """
-Nova Poshta Package Tracking Web Application v1.2
+Nova Poshta Package Tracking Web Application v1.3
 Complete with: Import/Export, Unified sync, Incoming packages, Timezone handling
 """
 
@@ -9,6 +9,7 @@ import requests
 from translations import TRANSLATIONS
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo, available_timezones
+from collections import defaultdict
 from functools import wraps
 from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file
@@ -68,6 +69,48 @@ def can_view_invoice(package):
     return True
 
 app.jinja_env.globals.update(can_view_invoice=can_view_invoice)
+
+# Package trends for dashboard chart
+def get_package_trends(api_key_ids, days=30):
+    """Calculate daily package counts for trend chart"""
+    from datetime import datetime, timedelta
+    
+    user_tz = get_user_timezone()
+    now = datetime.now(user_tz)
+    from_date = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days)
+    
+    # Get packages (compare as naive)
+    packages = Package.query.filter(
+        Package.api_key_id.in_(api_key_ids),
+        Package.draft_status == 'sent',
+        Package.date_created >= from_date.replace(tzinfo=None)  # ← Remove timezone
+    ).all()
+    
+    trends = {'dates': [], 'in_transit': [], 'at_branch': [], 'completed': []}
+    
+    for i in range(days):
+        day = from_date + timedelta(days=i)
+        day_naive = day.replace(tzinfo=None)  # ← Remove timezone for comparison
+        next_day_naive = (day + timedelta(days=1)).replace(tzinfo=None)
+        
+        trends['dates'].append(day.strftime('%d.%m'))
+        
+        in_transit = at_branch = completed = 0
+        
+        for pkg in packages:
+            if pkg.date_created < next_day_naive:  # ← Now both are naive
+                if pkg.is_delivered:
+                    completed += 1
+                elif pkg.status_code in ['7', '8']:
+                    at_branch += 1
+                elif pkg.status_code != '2':
+                    in_transit += 1
+        
+        trends['in_transit'].append(in_transit)
+        trends['at_branch'].append(at_branch)
+        trends['completed'].append(completed)
+    
+    return trends
 
 # TIME CONTEXT PROCESSOR
 @app.context_processor
@@ -766,6 +809,7 @@ def change_password():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Get API keys for current user
     if current_user.role == 'admin':
         api_keys = APIKey.query.filter_by(is_active=True).all()
     else:
@@ -773,31 +817,43 @@ def dashboard():
 
     api_ids = [k.id for k in api_keys]
     if api_ids:
+        # Base query - only sent packages
         all_pkgs = Package.query.filter(Package.api_key_id.in_(api_ids))
-        Package.draft_status == 'sent'   # Only count sent packages
+        Package.draft_status == 'sent'
+        # Total packages (all sent)
         total = all_pkgs.count()
         
-        # Delivering: active packages, excluding ready incoming
-        delivering = all_pkgs.filter(
+        # IN TRANSIT: Active packages, not at branch, not delivered, not deleted
+        in_transit = all_pkgs.filter(
             Package.is_delivered == False,
-            ~db.and_(Package.direction == 'incoming', Package.status_code.in_(['7','8']))
+            Package.status_code != '2',  # Exclude deleted
+            Package.status_code.in_(['7', '8'])  # Exclude at branch
         ).count()
         
-        # Ready: ONLY incoming packages with status 7-8
-        ready = all_pkgs.filter(
-            Package.direction == 'incoming',
-            Package.status_code.in_(['7','8'])
+        # AT BRANCH: Ready for courier pickup (status 7, 8)
+        at_branch = all_pkgs.filter(
+            Package.status_code.in_(['7', '8'])
         ).count()
         
-        # Delivered: status 2, 9, 10, 11
-        delivered = all_pkgs.filter(Package.is_delivered == True).count()
-    else:
-        total = delivering = ready = delivered = 0
+        # COMPLETED: Only delivered (not including deleted)
+        completed = all_pkgs.filter(
+            Package.is_delivered == True
+        ).count()
 
-    return render_template('dashboard.html', api_keys=api_keys,
-                           total_packages=total, delivering_packages=delivering,
-                           ready_pickup=ready, delivered_packages=delivered,
-                           now=datetime.now(ZoneInfo(DEFAULT_TIMEZONE)))
+        # Get trend data
+        trends = get_package_trends(api_ids, days=30)
+    else:
+        total = in_transit = at_branch = completed = 0
+        trends = {'dates': [], 'in_transit': [], 'at_branch': [], 'completed': []}
+
+    return render_template('dashboard.html', 
+                         api_keys=api_keys,
+                         total_packages=total, 
+                         in_transit=in_transit,
+                         at_branch=at_branch,
+                         completed=completed,
+                         trends=trends,
+                         now=datetime.now(get_user_timezone()))
 
 @app.route('/packages')
 @login_required

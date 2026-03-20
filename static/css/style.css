@@ -152,8 +152,13 @@ body {
 }
 
 .stat-icon-secondary {
-    background: linear-gradient(135deg, #cbd3da 0%, #8c9297 100%);
-    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.2);
+    background: rgba(86, 94, 90, 0.1);
+    box-shadow: 0 4px 15px rgba(160, 166, 172, 0.2);
+}
+
+.stat-icon-info {
+    background: rgba(13, 202, 240, 0.1);
+    color: #0dcaf0;
 }
 
 /* Package card */

@@ -1,12 +1,14 @@
 {% extends "base.html" %}
-{% block title %}{{ t('dashboard') }} - Nova Poshta v1.1{% endblock %}
+{% block title %}{{ t('dashboard') }} - Nova Poshta{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-speedometer2 me-2"></i>{{ t('dashboard') }}</h2>
     <small class="text-muted"><i class="bi bi-clock me-1"></i>{{ now.strftime('%d.%m.%Y %H:%M') }}</small>
 </div>
 
+<!-- Dashboard Cards -->
 <div class="row g-4 mb-4">
+    <!-- Total Packages -->
     <div class="col-md-3">
         <a href="{{ url_for('packages', filter='all') }}" class="text-decoration-none">
             <div class="card stat-card">
@@ -15,52 +17,79 @@
                         <p class="text-muted mb-1">{{ t('total_packages') }}</p>
                         <h2 class="mb-0 fw-bold">{{ total_packages }}</h2>
                     </div>
-                    <div class="stat-icon stat-icon-primary"><i class="bi bi-box-seam"></i></div>
+                    <div class="stat-icon stat-icon-primary">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
                 </div>
             </div>
         </a>
     </div>
+
+    <!-- In Transit -->
     <div class="col-md-3">
         <a href="{{ url_for('packages', filter='delivering') }}" class="text-decoration-none">
             <div class="card stat-card">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">{{ t('delivering') }}</p>
-                        <h2 class="mb-0 fw-bold text-warning">{{ delivering_packages }}</h2>
+                        <p class="text-muted mb-1">{{ t('in_transit') }}</p>
+                        <h2 class="mb-0 fw-bold text-warning">{{ in_transit }}</h2>
                     </div>
-                    <div class="stat-icon stat-icon-warning"><i class="bi bi-truck"></i></div>
+                    <div class="stat-icon stat-icon-warning">
+                        <i class="bi bi-truck"></i>
+                    </div>
                 </div>
             </div>
         </a>
     </div>
+
+    <!-- At Branch (Ready for Courier) -->
     <div class="col-md-3">
         <a href="{{ url_for('packages', filter='ready') }}" class="text-decoration-none">
             <div class="card stat-card">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">{{ t('ready_pickup') }}</p>
-                        <h2 class="mb-0 fw-bold text-success">{{ ready_pickup }}</h2>
+                        <p class="text-muted mb-1">{{ t('at_branch') }}</p>
+                        <h2 class="mb-0 fw-bold text-info">{{ at_branch }}</h2>
                     </div>
-                    <div class="stat-icon stat-icon-success"><i class="bi bi-check-circle"></i></div>
+                    <div class="stat-icon stat-icon-info">
+                        <i class="bi bi-geo-alt-fill"></i>
+                    </div>
                 </div>
             </div>
         </a>
     </div>
+
+    <!-- Completed (Delivered) -->
     <div class="col-md-3">
         <a href="{{ url_for('packages', filter='delivered') }}" class="text-decoration-none">
             <div class="card stat-card">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="text-muted mb-1">{{ t('delivered') }}</p>
-                        <h2 class="mb-0 fw-bold text-secondary">{{ delivered_packages }}</h2>
+                        <p class="text-muted mb-1">{{ t('completed') }}</p>
+                        <h2 class="mb-0 fw-bold text-success">{{ completed }}</h2>
                     </div>
-                    <div class="stat-icon stat-icon-secondary"><i class="bi bi-check-circle-fill"></i></div>
+                    <div class="stat-icon stat-icon-success">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
                 </div>
             </div>
         </a>
     </div>
 </div>
 
+<!-- Trends Chart -->
+{% if total_packages > 0 %}
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-graph-up me-2"></i>{{ t('package_trends') }} ({{ t('last_30_days') }})
+    </div>
+    <div class="card-body">
+        <canvas id="trendsChart" height="80"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- API Keys Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-key me-2"></i>{{ t('api_keys') }}</span>
@@ -118,5 +147,77 @@
     </div>
     {% endif %}
 </div>
-<script>window.translations = { syncing: "{{ t('syncing') }}", syncSuccess: "{{ t('sync_success') }}", syncError: "{{ t('error') }}: " };</script>
+
+<!-- Chart.js Script -->
+{% if total_packages > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const ctx = document.getElementById('trendsChart');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ trends.dates | tojson }},
+        datasets: [
+        {
+            label: '{{ t("in_transit") }}',
+            data: {{ trends.in_transit | tojson }},
+        borderColor: '#ffc107',
+        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+        tension: 0.4
+            },
+        {
+            label: '{{ t("at_branch") }}',
+            data: {{ trends.at_branch | tojson }},
+        borderColor: '#0dcaf0',
+        backgroundColor: 'rgba(13, 202, 240, 0.1)',
+        tension: 0.4
+            },
+        {
+            label: '{{ t("completed") }}',
+            data: {{ trends.completed | tojson }},
+        borderColor: '#198754',
+        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+        tension: 0.4
+            }
+    ]
+    },
+        options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            tooltip: {
+                callbacks: {
+                    title: function (context) {
+                        return context[0].label;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+
+<script>
+    window.translations = {
+        syncing: "{{ t('syncing') }}",
+        syncSuccess: "{{ t('sync_success') }}",
+        syncError: "{{ t('error') }}: "
+    };
+</script>
 {% endblock %}
