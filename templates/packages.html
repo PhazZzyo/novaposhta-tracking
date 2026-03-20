@@ -49,7 +49,7 @@
             </thead>
             <tbody>
                 {% for pkg in packages %}
-                <tr {% if pkg.is_delivered %}class="table-light" {% endif %}>
+                <tr data-delivered="{{ pkg.is_delivered|lower }}">
                     <td>
                         {% if pkg.draft_status == 'draft' %}
                         <span class="badge bg-secondary">DRAFT</span>

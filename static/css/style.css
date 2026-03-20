@@ -62,6 +62,18 @@ body {
     font-size: .85rem;
 }
 
+/* packages */
+/* Light theme - delivered packages */
+body[data-theme="light"] tr[data-delivered="true"] {
+    background-color: #f8f9fa;
+}
+
+/* Dark theme - delivered packages */
+body[data-theme="dark"] tr[data-delivered="true"] {
+    background-color: #2c3034;
+    opacity: 0.8;
+}
+
 /* ---------- Buttons ---------- */
 .btn-primary {
     background: var(--np-red);
@@ -213,6 +225,13 @@ code,
 
 .warehouse-compact i {
     color: #6c757d;
+}
+
+/* Dark theme tables */
+body[data-theme="dark"] .table tbody tr {
+    background-color: #212529 !important;
+    color: #ffffff !important;
+    border-color: #495057;
 }
 
 /* ---------- Badges ---------- */
@@ -372,6 +391,20 @@ td .status-badge {
 .footer {
     background: #f8f9fa;
     border-top: 1px solid rgba(0, 0, 0, .06);
+}
+
+/* Dark theme footer */
+body[data-theme="dark"] .footer-theme {
+    background-color: #1a1d20 !important;
+    border-top: 1px solid #495057 !important;
+}
+
+body[data-theme="dark"] footer {
+    background-color: #1a1d20 !important;
+}
+
+body[data-theme="dark"] .text-muted {
+    color: #adb5bd !important;
 }
 
 /* ---------- Dropdown ---------- */

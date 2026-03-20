@@ -39,6 +39,8 @@ TRANSLATIONS = {
         'completed': 'Completed',
         'package_trends': 'Package Trends',
         'last_30_days': 'Last 30 Days',
+        'click_legend_to_toggle': 'Click legend items to toggle visibility',
+
 
         # API Key
         'api_key': 'API Key',
@@ -210,6 +212,7 @@ TRANSLATIONS = {
         'completed': 'Доставлені',
         'package_trends': 'Тренди посилок',
         'last_30_days': 'Останні 30 днів',
+        'click_legend_to_toggle': 'Виберіть елементи легенди, які бажаєте відобразити',
 
         # API Key
         'api_key': 'API ключ',
