@@ -232,7 +232,10 @@ class User(UserMixin, db.Model):
 	timezone = db.Column(db.String(50), default=DEFAULT_TIMEZONE)
 	created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 	last_login = db.Column(db.DateTime(timezone=True))
-	tracked_apis = db.relationship('UserAPITracking', back_populates='user', cascade='all, delete-orphan')
+	tracked_apis = db.relationship('UserAPITracking', back_populates='user', cascade='all, delete-orphan')	
+	telegram_user_id = db.Column(db.BigInteger, unique=True, nullable=True)
+	telegram_notifications = db.Column(db.Boolean, default=True)
+	telegram_linked_at = db.Column(db.DateTime, nullable=True)
 
 	def set_password(self, pw): self.password_hash = generate_password_hash(pw)
 	def check_password(self, pw): return check_password_hash(self.password_hash, pw)
@@ -348,6 +351,17 @@ class SyncLog(db.Model):
 	sync_summary = db.Column(db.Text)
 	api_response = db.Column(db.JSON)
 	created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+class TelegramLinkCode(db.Model):
+    __tablename__ = 'telegram_link_codes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(16), unique=True, nullable=False, index=True)
+    telegram_user_id = db.Column(db.BigInteger, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1049,6 +1063,40 @@ def settings():
 	timezones = sorted(list(available_timezones()))
 	return render_template('settings.html', available_apis=available_apis,
 						   tracked_api_ids=tracked_api_ids, timezones=timezones)
+
+# Telegram linking route
+@app.route('/settings/telegram', methods=['GET', 'POST'])
+@login_required
+def telegram_settings():
+    if request.method == 'POST':
+        code = request.form.get('link_code', '').strip().upper()
+        
+        # Find code in database
+        link_obj = TelegramLinkCode.query.filter_by(
+            code=code,
+            used=False
+        ).first()
+        
+        if not link_obj:
+            flash('Invalid or expired code', 'error')
+            return redirect(url_for('telegram_settings'))
+        
+        # Check if expired
+        if datetime.now(timezone.utc) > link_obj.expires_at:
+            flash('Code expired. Generate a new one in Telegram.', 'error')
+            return redirect(url_for('telegram_settings'))
+        
+        # Link account
+        current_user.telegram_user_id = link_obj.telegram_user_id
+        current_user.telegram_linked_at = datetime.now(timezone.utc)
+        link_obj.used = True
+        link_obj.user_id = current_user.id
+        db.session.commit()
+        
+        flash('Telegram account linked successfully!', 'success')
+        return redirect(url_for('telegram_settings'))
+    
+    return render_template('telegram_settings.html')
 
 # Routes - Admin
 @app.route('/admin/users')
