@@ -43,6 +43,9 @@ TRANSLATIONS = {
         'invoice': 'Invoice',
         'details': 'Details',
         'close': 'Close',
+        'save_as_draft': 'Save as Draft',
+        'send': 'Send',
+        'draft_saved': 'Draft saved!',
 
         # API Key
         'api_key': 'API Key',
@@ -69,13 +72,12 @@ TRANSLATIONS = {
         'save_client_for_later': 'Save this client for quick selection later',
         
         # Package Details
-        'total_weight_all_seats': 'Total Weight (auto calculated)',
+        'total_weight_all_seats': 'Total Weight',
         'declared_value_uah': 'Declared Value (UAH)',
         'dimensions_hint': 'Length × Width × Height in cm, Weight in kg',
         'package_description_placeholder': 'Brief description of package contents',
         'estimated_shipping_calculated': 'Estimated shipping cost: ~80 UAH (calculated by Nova Poshta)',
-        'view_invoice': 'View Invoice',
-        'delete_draft': 'Delete draft',
+        'view_invoice': 'View Invoice',        
         'remove_deleted_package': 'Remove deleted package',
         'invoice_not_available_reason': 'Invoice only available for packages in transit',
 
@@ -132,11 +134,18 @@ TRANSLATIONS = {
         'new_client_spaceholder': '-- New client --',
         
         # Actions
-        'create': 'Create',
-        'save_as_draft': 'Save as Draft',
+        'create': 'Create',        
         'cancel': 'Cancel',
         'close': 'Close',
         'submit': 'Submit',
+
+        #Draft Actions
+        'save_as_draft': 'Save as Draft',
+        'edit_draft': 'Edit Draft',
+        'update_draft': 'Update & Send',
+        'draft_updated': 'Draft updated successfully!',
+        'error_loading_draft': 'Error loading draft',
+        'delete_draft': 'Delete draft',
         
         # Payment Methods
         'cash': 'Cash',
@@ -224,6 +233,9 @@ TRANSLATIONS = {
         'invoice': 'Накладна',
         'details': 'Детально',
         'close': 'Закрити',
+        'save_as_draft': 'Зберегти як чернетку',
+        'send': 'Відправити',
+        'draft_saved': 'Чернетку збережено!',
 
         # API Key
         'api_key': 'API ключ',
@@ -250,7 +262,7 @@ TRANSLATIONS = {
         'save_client_for_later': 'Зберегти цього клієнта для швидкого вибору пізніше',
         
         # Package Details
-        'total_weight_all_seats': 'Загальна вага (авто-розрахована)',
+        'total_weight_all_seats': 'Загальна вага',
         'declared_value_uah': 'Оголошена вартість (грн)',
         'dimensions_hint': 'Довжина × Ширина × Висота в см, Вага в кг',
         'package_description_placeholder': 'Короткий опис вмісту посилки',
@@ -313,10 +325,17 @@ TRANSLATIONS = {
         
         # Actions
         'create': 'Створити',
-        'save_as_draft': 'Зберегти як чернетку',
         'cancel': 'Скасувати',
         'close': 'Закрити',
         'submit': 'Відправити',
+
+        #Draft Actions
+        'save_as_draft': 'Зберегти як чернетку',
+        'edit_draft': 'Редагувати чернетку',
+        'update_draft': 'Оновити і відправити',
+        'draft_updated': 'Чернетку успішно оновлено!',
+        'error_loading_draft': 'Помилка завантаження чернетки',
+        'delete_draft': 'Видалити чернетку',
         
         # Payment Methods
         'cash': 'Готівка',

@@ -112,8 +112,14 @@
                     </td>
                     <td class="text-end text-nowrap">
                         {% if pkg.draft_status in ['draft', 'failed'] %}
-                        <!-- Draft/Failed: Show delete button -->
-                        <button class="btn btn-sm btn-danger"
+                        <!-- Edit Draft Button -->
+                        <button class="btn btn-sm btn-warning" onclick="editDraft({{ pkg.id }})"
+                            title="{{ t('edit_draft') }}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+
+                        <!-- Delete Draft Button -->
+                        <button class="btn btn-sm btn-danger ms-1"
                             onclick="confirmDelete({{ pkg.id }}, '{{ pkg.tracking_number or 'Draft #' ~ pkg.id }}')"
                             title="{{ t('delete_draft') }}">
                             <i class="bi bi-trash"></i>
@@ -223,9 +229,21 @@
                             {% endif %}
                         </div>
                     </div>
-                    <!-- Action Buttons Footer - Centered -->
+                    <!-- Action Buttons Footer -->
                     <div class="pkg-actions-footer">
-                        {% if can_view_invoice(pkg) %}
+                        {% if pkg.draft_status in ['draft', 'failed'] %}
+                        <div class="pkg-actions-footer">
+                            <button class="btn btn-sm btn-warning" onclick="editDraft({{ pkg.id }})"
+                                title="{{ t('edit_draft') }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger"
+                                onclick="confirmDelete({{ pkg.id }}, '{{ pkg.tracking_number or 'Draft #' ~ pkg.id }}')">
+                                <i class="bi bi-trash me-1"></i>
+                                {{ t('delete') }}
+                            </button>
+                        </div>
+                        {% elif can_view_invoice(pkg) %}
                         <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
                             class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
                             <i class="bi bi-file-pdf me-1"></i>
@@ -238,8 +256,7 @@
                             {{ t('invoice') }}
                         </button>
                         {% endif %}
-                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#pkgModal"
-                            onclick="loadPackage({{ pkg.id }})">
+                        <button class="btn btn-sm btn-primary" onclick="loadPackage({{ pkg.id }})">
                             <i class="bi bi-info-circle me-1"></i>
                             {{ t('details') }}
                         </button>
@@ -369,6 +386,138 @@
             form.submit();
         }
     }
+
+    window.editingDraftId = null;
+
+    // Load draft data into modal for draft editing
+    window.editDraft = async function (draftId) {
+        window.editingDraftId = draftId;
+
+        try {
+            const response = await fetch(`/api/draft/${draftId}`);
+            const data = await response.json();
+
+            if (!data.success) {
+                alert((window.translations.error || 'Error') + ": " + data.error);
+                return;
+            }
+
+            const draft = data.draft;
+            console.log('🔵 Draft loaded:', draft);
+            console.log('🔵 Seats amount:', draft.seats);  // ← Check this
+
+            // Update modal title
+            const modalTitle = document.querySelector('#createPackageModal .modal-title');
+            if (modalTitle) {
+                modalTitle.innerHTML = '<i class="bi bi-pencil me-2"></i>' + (window.translations.edit_draft || 'Edit Draft');
+            }
+
+            // Pre-fill simple fields
+            if (document.getElementById('pkg_api_key')) {
+                document.getElementById('pkg_api_key').value = draft.api_key_id || '';
+            }
+
+            document.getElementById('recipient_name').value = draft.recipient_name || '';
+            document.getElementById('recipient_phone').value = draft.recipient_phone || '';
+            document.getElementById('recipient_contact').value = draft.recipient_contact || '';
+
+            if (document.getElementById('pkg_cost')) {
+                document.getElementById('pkg_cost').value = draft.cost || '';
+            }
+            if (document.getElementById('pkg_description')) {
+                document.getElementById('pkg_description').value = draft.description || '';
+            }
+            if (document.getElementById('payment_method')) {
+                document.getElementById('payment_method').value = draft.payment_method || 'Cash';
+            }
+            if (document.getElementById('cargo_type')) {
+                document.getElementById('cargo_type').value = draft.cargo_type || 'Parcel';
+            }
+
+            // Load seats
+            const seatsCount = draft.seats || 1;
+
+            // Clear existing seats
+            const seatsContainer = document.getElementById('seatsContainer');
+            if (seatsContainer) {
+                seatsContainer.innerHTML = '';
+
+                // Create the correct number of seat inputs
+                for (let i = 0; i < seatsCount; i++) {
+                    // Check if you have an addSeat function
+                    if (typeof window.addSeat === 'function') {
+                        window.addSeat();
+                    } else if (typeof addSeat === 'function') {
+                        addSeat();
+                    } else {
+                        // Manually trigger the "Add Seat" button click
+                        const addSeatBtn = document.getElementById('addSeatBtn');
+                        if (addSeatBtn && i < seatsCount) {
+                            addSeatBtn.click();
+                        }
+                    }
+                }
+            }
+
+            // Set total weight if you have a field for it
+            if (document.getElementById('total_weight')) {
+                document.getElementById('total_weight').value = draft.weight || 1;
+            }
+
+            // City and warehouse (user will re-select)
+            if (draft.recipient_city) {
+                const citySearchInput = document.getElementById('recipient_city_search');
+                if (citySearchInput) {
+                    citySearchInput.value = draft.recipient_city;
+                }
+            }
+
+            // Change submit button text
+            const submitBtn = document.querySelector('#createPackageModal .btn-primary[onclick*="submitPackage"]');
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="bi bi-pencil me-2"></i>' + (window.translations.update_draft || 'Update & Send');
+            }
+
+            // Open modal
+            const modalElement = document.getElementById('createPackageModal');
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+
+        } catch (error) {
+            console.error('❌ Error loading draft:', error);
+            alert(window.translations.error_loading_draft || 'Error loading draft');
+        }
+    };
+
+    /** Reset modal when creating new (not editing) */
+    window.resetCreateModal = function () {
+        // Reset modal to default state for creating new package
+        editingDraftId = null;
+
+        // Reset modal title
+        const modalTitle = document.querySelector('#createPackageModal .modal-title');
+        if (modalTitle) {
+            modalTitle.innerHTML = '<i class="bi bi-plus-lg me-2"></i>{{ t("create_package") }}';
+        }
+
+        // Reset submit button text
+        const submitBtn = document.querySelector('#createPackageModal .btn-primary[onclick*="submitPackage"]');
+        if (submitBtn) {
+            submitBtn.innerHTML = '<i class="bi bi-check-lg me-2"></i>{{ t("create") }}';
+        }
+
+        // Clear form
+        document.getElementById('createPackageForm')?.reset();
+    };
+
+    // Add event listener to "Create Package" button to reset modal
+    document.addEventListener('DOMContentLoaded', function () {
+        const createBtn = document.querySelector('[data-bs-target="#createPackageModal"]');
+        if (createBtn) {
+            createBtn.addEventListener('click', resetCreateModal);
+        }
+    });
+
 </script>
 {% include 'partials/create_package_modal.html' %}
 {% endblock %}
