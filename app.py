@@ -12,21 +12,133 @@ from zoneinfo import ZoneInfo, available_timezones
 from collections import defaultdict
 from functools import wraps
 from io import BytesIO
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file, Blueprint
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import MetaData
+from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import desc, and_
 import time
 
+# Notification sender
+def send_telegram_notification(telegram_user_id: int, message: str):
+    """Send Telegram notification synchronously using requests"""
+    bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not bot_token:
+        print("❌ No bot token found!")
+        return False
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        'chat_id': telegram_user_id,
+        'text': message,
+        'parse_mode': 'HTML'
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        result = response.json()
+        print(f"📤 Telegram API response: {result}")
+        return result.get('ok', False)
+    except Exception as e:
+        print(f"❌ Failed to send Telegram notification: {e}")
+        return False
+
+
+def notify_package_status_change(package, old_status_code, new_status_code):
+    """Send notification when package status changes"""
+    
+    # Only notify for incoming packages
+    if package.direction != 'incoming':
+        return
+    
+    # Only notify for important status changes
+    if new_status_code not in ['7', '8', '9']:
+        return
+    
+    # Find the user who owns this package's API key
+    api_key = APIKey.query.get(package.api_key_id)
+    if not api_key:
+        return
+    
+    # Find tracked users + admins
+    tracked = UserAPITracking.query.filter_by(api_key_id=api_key.id).all()
+    admin_users = User.query.filter_by(role='admin').all()
+    
+    user_ids = set([t.user_id for t in tracked])
+    for admin in admin_users:
+        user_ids.add(admin.id)
+    
+    users_to_notify = User.query.filter(
+        User.id.in_(user_ids),
+        User.telegram_user_id != None,
+        User.telegram_notifications == True
+    ).all()
+    
+    print(f"📢 Users to notify: {[u.username for u in users_to_notify]}")
+    print(f"📢 Their telegram IDs: {[u.telegram_user_id for u in users_to_notify]}")
+    
+    if not users_to_notify:
+        print("❌ No users to notify!")
+        return
+    
+    # Build message
+    if new_status_code in ['7', '8']:
+        emoji = '📍'
+        urgent = '\n⚠️ <b>Ready for pickup!</b>'
+    elif new_status_code == '9':
+        emoji = '✅'
+        urgent = ''
+    else:
+        emoji = '🚚'
+        urgent = ''
+    
+    message = (
+        f"{emoji} <b>Package Update</b>\n\n"
+        f"TTN: <code>{package.tracking_number}</code>\n"
+        f"Recipient: {package.recipient_name or '-'}\n"
+        f"Status: {package.status}\n"
+        f"{urgent}"
+    )
+    
+    print(f"📢 Sending message: {message}")
+    
+    # Send to all relevant users
+    for user in users_to_notify:
+        result = send_telegram_notification(user.telegram_user_id, message)
+        if result:
+            print(f"✅ Notified {user.username} (TG: {user.telegram_user_id})")
+        else:
+            print(f"❌ Failed to notify {user.username}")
+
+# Define naming convention
+convention = {
+	"ix": "ix_%(column_0_label)s",
+	"uq": "uq_%(table_name)s_%(column_0_name)s",
+	"ck": "ck_%(table_name)s_%(constraint_name)s",
+	"fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+	"pk": "pk_%(table_name)s"
+}
+
+metadata = MetaData(naming_convention=convention)
+
+# Create SQLAlchemy instance ONCE
+db = SQLAlchemy(metadata=metadata)
+migrate = None
+login_manager = LoginManager()
+
+# Create app instance
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///novaposhta.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
-db = SQLAlchemy(app)
-login_manager = LoginManager(app)
+# Initialize extensions
+db.init_app(app)
+migrate = Migrate(app, db)
+login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = ''
 
@@ -51,7 +163,57 @@ def utc_to_local(dt):
 	# Convert to the user's local timezone
 	return dt.astimezone(get_user_timezone())
 
-app.jinja_env.filters['local_time'] = utc_to_local
+# TIME CONTEXT PROCESSOR
+@app.context_processor
+def inject_timezone_helpers():
+	def format_datetime(dt, fmt='%d.%m.%Y %H:%M'):
+		if not dt:
+			return '-'
+		local = utc_to_local(dt)
+		return local.strftime(fmt) if local else '-'
+
+	def format_date(dt):
+		return format_datetime(dt, '%d.%m.%Y')
+
+	def format_time(dt):
+		return format_datetime(dt, '%H:%M')
+
+	return {
+		'format_datetime': format_datetime,
+		'format_date': format_date,
+		'format_time': format_time
+	}
+
+# Translation
+def t(key):
+    lang = current_user.language if current_user.is_authenticated else session.get('language', 'uk')
+    return TRANSLATIONS.get(lang, TRANSLATIONS['uk']).get(key, key)
+
+# Custom filters for warehouse display
+@app.template_filter('warehouse_number')
+def warehouse_number(warehouse_name):
+    """Extract warehouse number"""
+    import re
+    if not warehouse_name:
+        return ''
+    match = re.search(r'Відділення\s*№?\s*(\d+)', warehouse_name, re.IGNORECASE)
+    if match:
+        return f"№{match.group(1)}"
+    match = re.search(r'Поштомат.*?№?\s*(\d+)', warehouse_name, re.IGNORECASE)
+    if match:
+        return f"Поштомат №{match.group(1)}"
+    return warehouse_name[:20]
+
+@app.template_filter('warehouse_street')
+def warehouse_street(warehouse_name):
+    """Extract street address"""
+    if not warehouse_name:
+        return ''
+    if ':' in warehouse_name:
+        return warehouse_name.split(':', 1)[1].strip()
+    if '(' in warehouse_name:
+        return warehouse_name.split('(')[0].strip()
+    return warehouse_name
 
 # Invoice visibility helper
 def can_view_invoice(package):
@@ -67,8 +229,6 @@ def can_view_invoice(package):
 		return False
 	
 	return True
-
-app.jinja_env.globals.update(can_view_invoice=can_view_invoice)
 
 # Package trends for dashboard chart
 def get_package_trends(api_key_ids, days=30):
@@ -139,78 +299,9 @@ def get_package_trends(api_key_ids, days=30):
 	
 	return trends
 
-# TIME CONTEXT PROCESSOR
-@app.context_processor
-def inject_timezone_helpers():
-	"""Make timezone-aware datetime formatting available in all templates"""
-	def format_datetime(dt, fmt='%d.%m.%Y %H:%M'):
-		"""Format datetime in user's timezone"""
-		if not dt:
-			return '-'
-		local = utc_to_local(dt)
-		return local.strftime(fmt) if local else '-'
-	
-	def format_date(dt):
-		"""Format just the date"""
-		return format_datetime(dt, '%d.%m.%Y')
-	
-	def format_time(dt):
-		"""Format just the time"""
-		return format_datetime(dt, '%H:%M')
-	
-	return {
-		'format_datetime': format_datetime,
-		'format_date': format_date,
-		'format_time': format_time
-	}
-
-# Translation
-def t(key):
-	lang = session.get('lang', 'uk')
-	return TRANSLATIONS.get(lang, {}).get(key, key)
-
-app.jinja_env.globals.update(t=t)
-
-# Custom filters for warehouse display
-@app.template_filter('warehouse_number')
-def warehouse_number(warehouse_name):
-	"""Extract warehouse number"""
-	import re
-	if not warehouse_name:
-		return ''
-	
-	# Extract a number following "Відділення" (e.g. "Відділення №123")
-	match = re.search(r'Відділення\s*№?\s*(\d+)', warehouse_name, re.IGNORECASE)
-	if match:
-		return f"№{match.group(1)}"
-	
-	# Extract a number following "Поштомат" (e.g. "Поштомат №123")
-	match = re.search(r'Поштомат.*?№?\s*(\d+)', warehouse_name, re.IGNORECASE)
-	if match:
-		return f"Поштомат №{match.group(1)}"
-	
-	return warehouse_name[:20]
-
-@app.template_filter('warehouse_street')
-def warehouse_street(warehouse_name):
-	"""Extract street address"""
-	if not warehouse_name:
-		return ''
-	
-	# Get part after colon
-	if ':' in warehouse_name:
-		return warehouse_name.split(':', 1)[1].strip()
-	
-	# Get part in parentheses
-	if '(' in warehouse_name:
-		return warehouse_name.split('(')[0].strip()
-	
-	return warehouse_name
-
-def t(key):
-	lang = current_user.language if current_user.is_authenticated else session.get('language', 'uk')
-	return TRANSLATIONS.get(lang, TRANSLATIONS['uk']).get(key, key)
-
+# Register Jinja filters
+app.jinja_env.filters['local_time'] = utc_to_local
+app.jinja_env.globals['can_view_invoice'] = can_view_invoice
 app.jinja_env.globals['t'] = t
 app.jinja_env.globals['now'] = lambda: datetime.now()
 
@@ -352,16 +443,20 @@ class SyncLog(db.Model):
 	api_response = db.Column(db.JSON)
 	created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+# Telegram Integration Models
 class TelegramLinkCode(db.Model):
+    """Temporary codes for linking Telegram accounts to web app users"""
     __tablename__ = 'telegram_link_codes'
     
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(16), unique=True, nullable=False, index=True)
     telegram_user_id = db.Column(db.BigInteger, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     used = db.Column(db.Boolean, default=False)
+    
+    user = db.relationship('User', backref='telegram_link_codes')
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -743,6 +838,9 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 							# Update delivery date if delivered
 							if pkg.is_delivered and not pkg.actual_delivery_date:
 								pkg.actual_delivery_date = datetime.now(timezone.utc)
+
+							# Send Telegram notification
+							notify_package_status_change(pkg, old_status, new_status)
 							
 							updated += 1
 				
@@ -796,10 +894,10 @@ def cooldown_ok(api_key_obj):
 @app.route('/set-language/<lang>')
 @login_required
 def set_language(lang):
-	if lang in ('en', 'uk'):
-		current_user.language = lang
-		db.session.commit()
-	return redirect(request.referrer or url_for('dashboard'))
+    if lang in ('en', 'uk'):
+        current_user.language = lang
+        db.session.commit()
+    return redirect(request.referrer or url_for('dashboard'))
 
 @app.route('/')
 def index():
@@ -826,7 +924,7 @@ def login():
 @login_required
 def logout():
 	logout_user()
-	return redirect(url_for('login'))
+	return redirect(url_for('authlogin'))
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
@@ -1063,40 +1161,6 @@ def settings():
 	timezones = sorted(list(available_timezones()))
 	return render_template('settings.html', available_apis=available_apis,
 						   tracked_api_ids=tracked_api_ids, timezones=timezones)
-
-# Telegram linking route
-@app.route('/settings/telegram', methods=['GET', 'POST'])
-@login_required
-def telegram_settings():
-    if request.method == 'POST':
-        code = request.form.get('link_code', '').strip().upper()
-        
-        # Find code in database
-        link_obj = TelegramLinkCode.query.filter_by(
-            code=code,
-            used=False
-        ).first()
-        
-        if not link_obj:
-            flash('Invalid or expired code', 'error')
-            return redirect(url_for('telegram_settings'))
-        
-        # Check if expired
-        if datetime.now(timezone.utc) > link_obj.expires_at:
-            flash('Code expired. Generate a new one in Telegram.', 'error')
-            return redirect(url_for('telegram_settings'))
-        
-        # Link account
-        current_user.telegram_user_id = link_obj.telegram_user_id
-        current_user.telegram_linked_at = datetime.now(timezone.utc)
-        link_obj.used = True
-        link_obj.user_id = current_user.id
-        db.session.commit()
-        
-        flash('Telegram account linked successfully!', 'success')
-        return redirect(url_for('telegram_settings'))
-    
-    return render_template('telegram_settings.html')
 
 # Routes - Admin
 @app.route('/admin/users')
@@ -1688,17 +1752,72 @@ def fetch_sender_uuids():
 	except Exception as e:
 		return jsonify({'success': False, 'error': str(e)})
 
-# Init
-def init_db():
-	with app.app_context():
-		db.create_all()
-		if not User.query.filter_by(username='sysadmin').first():
-			admin = User(username='sysadmin', full_name='System Administrator',
-						 role='admin', must_change_password=True, language='en')
-			admin.set_password('sysadmin')
-			db.session.add(admin)
-			db.session.commit()
-			print('✅ Default admin created: sysadmin / sysadmin')
+# ========================================
+# Telegram Bot Integration Routes
+# ========================================
+
+@app.route('/settings/telegram', methods=['GET', 'POST'])
+@login_required
+def telegram_settings():
+    """Telegram bot linking settings"""
+    if request.method == 'POST':
+        code = request.form.get('link_code', '').strip().upper()
+        
+        if not code:
+            flash('Please enter a linking code', 'error')
+            return redirect(url_for('telegram_settings'))
+        
+        # Find code in database
+        link_obj = TelegramLinkCode.query.filter_by(
+            code=code,
+            used=False
+        ).first()
+        
+        if not link_obj:
+            flash('Invalid or expired code', 'error')
+            return redirect(url_for('telegram_settings'))
+        
+        # Check if expired
+        if datetime.now(timezone.utc) > utc_to_local(link_obj.expires_at):
+            flash('Code expired. Generate a new one in Telegram by sending /start to @Orthotrack_bot', 'error')
+            return redirect(url_for('telegram_settings'))
+        
+        # Link account
+        current_user.telegram_user_id = link_obj.telegram_user_id
+        current_user.telegram_linked_at = datetime.now(timezone.utc)
+        current_user.telegram_notifications = True
+        link_obj.used = True
+        link_obj.user_id = current_user.id
+        db.session.commit()
+        
+        flash('Telegram account linked successfully!', 'success')
+        return redirect(url_for('telegram_settings'))
+    
+    return render_template('telegram_settings.html')
+
+@app.route('/settings/telegram/unlink', methods=['POST'])
+@login_required
+def telegram_unlink():
+    """Unlink Telegram account"""
+    current_user.telegram_user_id = None
+    current_user.telegram_notifications = False
+    db.session.commit()
+    
+    flash('Telegram account unlinked', 'success')
+    return redirect(url_for('telegram_settings'))
+
+
+@app.route('/settings/telegram/toggle-notifications', methods=['POST'])
+@login_required
+def toggle_telegram_notifications():
+    """Toggle Telegram notifications"""
+    data = request.json
+    enabled = data.get('enabled', False)
+    
+    current_user.telegram_notifications = enabled
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 # Draft deletion route
 @app.route('/package/<int:package_id>/delete', methods=['POST'])
@@ -1726,7 +1845,24 @@ def delete_package(package_id):
 	flash(f'Package {ttn} deleted', 'success')
 	return redirect(url_for('packages'))
 
+# Init
+def init_db():
+    with app.app_context():
+        db.create_all()
+        if not User.query.filter_by(username='sysadmin').first():
+            admin = User(
+                username='sysadmin',
+                full_name='System Administrator',
+                role='admin',
+                must_change_password=True,
+                language='en'
+            )
+            admin.set_password('sysadmin')
+            db.session.add(admin)
+            db.session.commit()
+            print('✅ Default admin created: sysadmin / sysadmin')
+
 # Run app
 if __name__ == '__main__':
-	init_db()
-	app.run(host='0.0.0.0', port=5000, debug=True)
+    init_db()
+    app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h2 class="mb-4">
+                <i class="bi bi-telegram me-2"></i>
+                {{ t('telegram_bot_settings') }}
+            </h2>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🤖 Telegram Bot Integration</h5>
+                </div>
+                <div class="card-body">
+                    {% if current_user.telegram_user_id %}
+                        <!-- Already Linked -->
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle me-2"></i>
+                            <strong>{{ t('telegram_linked') }}!</strong>
+                            <p class="mb-0 mt-2">
+                                {{ t('linked_at') }}: {{ current_user.telegram_linked_at.strftime('%Y-%m-%d %H:%M') if current_user.telegram_linked_at else 'N/A' }}
+                            </p>
+                        </div>
+
+                        <!-- Notification Settings -->
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" 
+                                       id="telegramNotifications" 
+                                       {% if current_user.telegram_notifications %}checked{% endif %}
+                                       onchange="toggleNotifications(this)">
+                                <label class="form-check-label" for="telegramNotifications">
+                                    {{ t('enable_telegram_notifications') }}
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                {{ t('receive_notifications_about') }}:
+                                <ul class="mt-2">
+                                    <li>{{ t('new_incoming_packages') }}</li>
+                                    <li>{{ t('packages_at_branch') }}</li>
+                                    <li>{{ t('packages_delivered') }}</li>
+                                </ul>
+                            </small>
+                        </div>
+
+                        <!-- Unlink Button -->
+                        <form method="POST" action="{{ url_for('telegram_unlink') }}" 
+                              onsubmit="return confirm('{{ t('confirm_unlink_telegram') }}');">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-x-circle me-2"></i>
+                                {{ t('unlink_telegram') }}
+                            </button>
+                        </form>
+
+                    {% else %}
+                        <!-- Not Linked Yet -->
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            {{ t('telegram_not_linked') }}
+                        </div>
+
+                        <h6>{{ t('how_to_link') }}:</h6>
+                        <ol>
+                            <li>{{ t('open_telegram_find_bot') }}: <a href="https://t.me/Orthotrack_bot" target="_blank">@Orthotrack_bot</a></li>
+                            <li>{{ t('send_start_command') }}: <code>/start</code></li>
+                            <li>{{ t('bot_will_give_code') }}</li>
+                            <li>{{ t('enter_code_below') }}:</li>
+                        </ol>
+
+                        <!-- Linking Form -->
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label for="link_code" class="form-label">{{ t('linking_code') }}</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="link_code" 
+                                       name="link_code" 
+                                       placeholder="A1B2C3D4"
+                                       maxlength="16"
+                                       required
+                                       style="text-transform: uppercase;">
+                                <small class="text-muted">{{ t('code_expires_10_min') }}</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-link-45deg me-2"></i>
+                                {{ t('link_account') }}
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Back to Settings -->
+            <div class="mt-3">
+                <a href="{{ url_for('settings') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>
+                    {{ t('back_to_settings') }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleNotifications(checkbox) {
+    fetch('/settings/telegram/toggle-notifications', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: checkbox.checked})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const status = checkbox.checked ? '{{ t("enabled") }}' : '{{ t("disabled") }}';
+            // Show toast or alert
+            console.log('Notifications ' + status);
+        }
+    });
+}
+</script>
+{% endblock %}
