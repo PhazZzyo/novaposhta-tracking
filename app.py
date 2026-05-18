@@ -2283,4 +2283,5 @@ def init_db():
 # Run app
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    is_debug = os.getenv('DEBUG', 'False').lower() == 'true'    
+    app.run(host='0.0.0.0', port=5000, debug=is_debug)
