@@ -3,7 +3,8 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>{{ t('create_package') }}</h5>
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>' + window.translations.create_package
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -215,11 +216,11 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('cancel') }}</button>
-                <button type="button" class="btn btn-outline-primary" id="saveDraftBtn">
-                    <i class="bi bi-save"></i> {{ t('save_as_draft') }}
+                <button type="button" class="btn btn-secondary" onclick="submitPackage('draft')">
+                    <i class="bi bi-save me-2"></i>{{ t('save_as_draft') }}
                 </button>
-                <button type="button" class="btn btn-primary" id="createPackageBtn">
-                    <i class="bi bi-send"></i> {{ t('create_package') }}
+                <button type="button" class="btn btn-primary" onclick="submitPackage('send')">
+                    <i class="bi bi-send me-2"></i>{{ t('create_package') }}
                 </button>
             </div>
         </div>
@@ -228,24 +229,168 @@
 
 <!-- JavaScript for Package Creation -->
 <script>
-    // Translation
-    const pkgTranslations = {
-        pleaseSelectApiKey: "{{ t('please_select_api_key') }}",
-        pleaseSelectCity: "{{ t('please_select_city') }}",
-        packageCreated: "{{ t('package_created') }}",
-        errorCreatingPackage: "{{ t('error_creating_package') }}"
+    // Submit package
+    window.editingDraftId = window.editingDraftId || null; // Global variable to track if we're editing
+
+    window.submitPackage = async function (action) {
+        try {
+            const apiKeySelect = document.getElementById('pkg_api_key');
+            const recipientCity = document.getElementById('recipient_city_ref');
+            const warehouseSelect = document.getElementById('recipient_warehouse');
+
+            if (!apiKeySelect || !apiKeySelect.value) {
+                alert(window.translations.please_select_api_key);
+                return;
+            }
+
+            // Validation ONLY 'send'
+            if (action === 'send') {
+                // Full validation
+                const apiKeySelect = document.getElementById('pkg_api_key');
+                if (!apiKeySelect || !apiKeySelect.value) {
+                    alert(window.translations.please_select_api_key);
+                    return;
+                }
+
+                const recipientCity = document.getElementById('recipient_city_ref');
+                if (!recipientCity || !recipientCity.value) {
+                    alert(window.translations.please_select_city);
+                    return;
+                }
+
+                const warehouseSelect = document.getElementById('recipient_warehouse');
+                if (!warehouseSelect || !warehouseSelect.value) {
+                    alert(window.translations.please_select_warehouse);
+                    return;
+                }
+            }
+
+            // Collect seats data
+            const seats = [];
+            document.querySelectorAll('.seat-dimensions').forEach((seat, index) => {
+                const weightInput = seat.querySelector('.seat-weight');
+                const weight = weightInput ? weightInput.value : null;
+
+                if (weight) {
+                    seats.push({
+                        weight: weight,
+                        length: seat.querySelector('.seat-length')?.value || '10',
+                        width: seat.querySelector('.seat-width')?.value || '10',
+                        height: seat.querySelector('.seat-height')?.value || '10'
+                    });
+                }
+            });
+
+            // Build package data
+            const packageData = {
+                action: action,
+                api_key_id: document.getElementById('pkg_api_key')?.value || null,
+                recipient_name: document.getElementById('recipient_name')?.value || '',
+                recipient_phone: document.getElementById('recipient_phone')?.value || '',
+                recipient_city: document.getElementById('recipient_city_search')?.value || '',
+                recipient_city_ref: document.getElementById('recipient_city_ref')?.value || '',
+                recipient_warehouse: warehouseSelect?.options[warehouseSelect.selectedIndex]?.text || '',
+                recipient_warehouse_ref: warehouseSelect?.value || '',
+                recipient_contact: document.getElementById('recipient_contact')?.value || '',
+                description: document.getElementById('pkg_description')?.value || 'Посилка',
+                cost: document.getElementById('pkg_cost')?.value || '0',
+                weight: document.getElementById('total_weight')?.value || '0',
+                payment_method: document.getElementById('payment_method')?.value || 'Cash',
+                payer_type: document.getElementById('payer_type')?.value || 'Recipient',
+                cargo_type: document.getElementById('cargo_type')?.value || 'Parcel',
+                save_client: document.getElementById('save_client')?.checked || false
+            };
+
+            // ADD SEATS AS SEPARATE FIELDS (seat_1_weight, seat_1_length, etc)
+            seats.forEach((seat, index) => {
+                const num = index + 1;
+                packageData[`seat_${num}_weight`] = seat.weight;
+                packageData[`seat_${num}_length`] = seat.length;
+                packageData[`seat_${num}_width`] = seat.width;
+                packageData[`seat_${num}_height`] = seat.height;
+            });
+
+            // Get sender data
+            if (apiKeySelect) {
+                const selectedOption = apiKeySelect.options[apiKeySelect.selectedIndex];
+                packageData.sender_city_ref = selectedOption.dataset.cityRef || '';
+                packageData.sender_ref = selectedOption.dataset.counterpartyRef || '';
+                packageData.sender_warehouse_ref = selectedOption.dataset.warehouseRef || '';
+                packageData.sender_contact_ref = selectedOption.dataset.contactRef || '';
+                packageData.sender_phone = selectedOption.dataset.senderPhone || '';
+                packageData.sender_name = selectedOption.text || '';
+                packageData.sender_city = selectedOption.dataset.cityName || '';
+            }
+
+            // Determine URL and method based on whether we're editing
+            const url = editingDraftId
+                ? `/api/package/${editingDraftId}/update`
+                : '/package/create';
+
+            const method = editingDraftId ? 'PUT' : 'POST';
+
+            // Send to backend
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(packageData)
+            });
+
+            // Check if response is OK before parsing JSON
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type');
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+                // Try to extract error from JSON response if available
+                if (contentType && contentType.includes('application/json')) {
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                    } catch (e) {
+                        // Response is not valid JSON, use HTTP error message
+                    }
+                }
+
+                throw new Error(errorMessage);
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                const message = editingDraftId
+                    ? (result.message || "{{ t('draft_updated') }}")
+                    : (result.message || "{{ t('package_created') }}");
+
+                alert(message);
+
+                const modalElement = document.getElementById('createPackageModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) modal.hide();
+
+                // Reset editing state
+                editingDraftId = null;
+
+                location.reload();
+            } else {
+                alert(window.translations.error + (result.error || window.translations.unknown_error));
+            }
+        } catch (error) {
+            console.error('❌ Error:', error);
+            alert(window.translations.failed + ": " + error.message);
+        }
     };
 
-    if (!window.packageModalInitialized) { // Prevent duplicate initialization
+    // INITIALIZATION - Runs once when the script is loaded
+    if (!window.packageModalInitialized) { // Prevent duplicate initialization        
         window.packageModalInitialized = true;
 
         // API key dropdown change handler 
         document.addEventListener('DOMContentLoaded', function () {
-            const modal = document.getElementById('createPackageModal');
+            const t = window.translations;
             const form = document.getElementById('createPackageForm');
+            const modal = document.getElementById('createPackageModal');
             const cityInput = document.getElementById('recipient_city_search');
             const cityResults = document.getElementById('city_results');
-            const warehouseSelect = document.getElementById('recipient_warehouse');
             const quickClientSelect = document.getElementById('quick_client');
             const senderCitySearchEdit = document.getElementById('sender_city_search_edit');
             const senderCityResultsEdit = document.getElementById('sender_city_results_edit');
@@ -266,7 +411,7 @@
                 if (contactValue && !cyrillicPattern.test(contactValue)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    alert("{{ t('contact_person_cyrillic_only') }}");
+                    alert(window.translations.please_select_city);
                     contactInput.focus();
                     return false;
                 }
@@ -312,51 +457,51 @@
                 const seatNum = document.querySelectorAll('.seat-dimensions').length + 1;
 
                 const seatHtml = `
-        <div class="seat-dimensions border rounded p-3 mb-3" data-seat="${seatNum}">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <strong>{{ t('seat') }} ${seatNum}</strong>
-                <div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary copy-seat" 
-                            title="Copy this seat">
-                        <i class="bi bi-files"></i> {{ t('copy_seat') }}
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-danger delete-seat" 
-                            title="{{ t('delete_seat')}}">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-2">
-                    <label class="form-label">{{ t('seat_weight') }}</label>
-                    <input type="number" class="form-control seat-weight" 
-                           step="0.1" min="0.1" value="${copyFrom ? copyFrom.weight : ''}" required>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ t('seat_length') }}</label>
-                    <input type="number" class="form-control seat-length" 
-                           step="1" min="1" value="${copyFrom ? copyFrom.length : ''}">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ t('seat_width') }}</label>
-                    <input type="number" class="form-control seat-width" 
-                           step="1" min="1" value="${copyFrom ? copyFrom.width : ''}">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">{{ t('seat_height') }}</label>
-                    <input type="number" class="form-control seat-height" 
-                           step="1" min="1" value="${copyFrom ? copyFrom.height : ''}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">{{ t('volumetric_weight')}}</label>
-                    <input type="text" class="form-control seat-volumetric" readonly 
-                           placeholder="{{ t('auto_calculated')}}">
-                    <small class="text-muted">{{ t('volumetric_weight_example')}}</small>
-                </div>
-            </div>
-        </div>
-    `;
+                                <div class="seat-dimensions border rounded p-3 mb-3" data-seat="${seatNum}">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>{{ t('seat') }} ${seatNum}</strong>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary copy-seat" 
+                                                    title="Copy this seat">
+                                                <i class="bi bi-files"></i> {{ t('copy_seat') }}
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-seat" 
+                                                    title="{{ t('delete_seat')}}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-2">
+                                            <label class="form-label">{{ t('seat_weight') }}</label>
+                                            <input type="number" class="form-control seat-weight" 
+                                                step="0.1" min="0.1" value="${copyFrom ? copyFrom.weight : ''}" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">{{ t('seat_length') }}</label>
+                                            <input type="number" class="form-control seat-length" 
+                                                step="1" min="1" value="${copyFrom ? copyFrom.length : ''}">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">{{ t('seat_width') }}</label>
+                                            <input type="number" class="form-control seat-width" 
+                                                step="1" min="1" value="${copyFrom ? copyFrom.width : ''}">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">{{ t('seat_height') }}</label>
+                                            <input type="number" class="form-control seat-height" 
+                                                step="1" min="1" value="${copyFrom ? copyFrom.height : ''}">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">{{ t('volumetric_weight')}}</label>
+                                            <input type="text" class="form-control seat-volumetric" readonly 
+                                                placeholder="{{ t('auto_calculated')}}">
+                                            <small class="text-muted">{{ t('volumetric_weight_example')}}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
 
                 document.getElementById('seatsContainer').insertAdjacentHTML('beforeend', seatHtml);
                 attachSeatListeners();
@@ -636,6 +781,7 @@
 
             // Load warehouses for city
             function loadWarehouses(cityRef, selectedWarehouseRef = null) {
+                const warehouseSelect = document.getElementById('recipient_warehouse');
                 warehouseSelect.innerHTML = '<option value="">Loading...</option>';
                 warehouseSelect.disabled = true;
 
@@ -683,18 +829,44 @@
                 }
             });
 
-            // Create Package button
-            document.getElementById('createPackageBtn').addEventListener('click', function () {
-                if (validateForm(false)) {  // Validate for create
-                    submitPackage('create');
-                }
-            });
+            // City search for editable sender
+            if (senderCitySearchEdit) {
+                senderCitySearchEdit.addEventListener('input', function () {
+                    clearTimeout(senderCitySearchTimeout);
+                    const query = this.value.trim();
 
-            // Save Draft button
-            document.getElementById('saveDraftBtn').addEventListener('click', function () {
-                // No validation for draft - just save
-                submitPackage('draft');
-            });
+                    if (query.length < 2) {
+                        senderCityResultsEdit.style.display = 'none';
+                        return;
+                    }
+
+                    senderCitySearchTimeout = setTimeout(() => {
+                        fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
+                            .then(r => r.json())
+                            .then(cities => {
+                                senderCityResultsEdit.innerHTML = '';
+                                if (cities.length === 0) {
+                                    senderCityResultsEdit.style.display = 'none';
+                                    return;
+                                }
+
+                                cities.forEach(city => {
+                                    const item = document.createElement('a');
+                                    item.href = '#';
+                                    item.className = 'list-group-item list-group-item-action';
+                                    item.textContent = city.name;
+                                    item.onclick = (e) => {
+                                        e.preventDefault();
+                                        selectEditSenderCity(city);
+                                    };
+                                    senderCityResultsEdit.appendChild(item);
+                                });
+
+                                senderCityResultsEdit.style.display = 'block';
+                            });
+                    }, 300);
+                });
+            }
 
             // Form validation
             function validateForm(isDraft) {
@@ -718,232 +890,112 @@
                 }
 
                 if (!document.getElementById('recipient_warehouse').value) {
-                    alert("{{ t('please_select_warehouse') }}");
+                    alert(window.translations.please_select_warehouse);
                     return false;
                 }
 
                 return true;
             }
 
-            // Submit package
-            async function submitPackage(action) {
-                try {
-                    const form = document.getElementById('createPackageForm');
-                    const apiKeySelect = document.getElementById('pkg_api_key');
-
-                    console.log('🔍 apiKeySelect:', apiKeySelect);
-                    console.log('🔍 apiKeySelect.value:', apiKeySelect?.value);
-                    console.log('🔍 apiKeySelect.selectedIndex:', apiKeySelect?.selectedIndex);
-
-                    if (!apiKeySelect) {
-                        alert("{{ t('error_api_key_not_found') }}");
-                        return;
-                    }
-
-                    if (!apiKeySelect.value) {
-                        alert("{{ t('please_select_api_key') }}");
-                        return;
-                    }
-
-                    // Collect seats data
-                    const seats = [];
-                    document.querySelectorAll('.seat-dimensions').forEach((seat, index) => {
-                        const weightInput = seat.querySelector('.seat-weight');
-                        const weight = weightInput ? weightInput.value : null;
-
-                        if (weight) {
-                            seats.push({
-                                weight: weight,
-                                length: seat.querySelector('.seat-length')?.value || '10',
-                                width: seat.querySelector('.seat-width')?.value || '10',
-                                height: seat.querySelector('.seat-height')?.value || '10'
-                            });
+            // Add event listener to reset modal when opening for new package
+            document.addEventListener('DOMContentLoaded', function () {
+                const createBtn = document.querySelector('[data-bs-target="#createPackageModal"]');
+                if (createBtn) {
+                    createBtn.addEventListener('click', function () {
+                        // Only reset if NOT editing
+                        if (!window.editingDraftId) {
+                            resetCreateModal();
                         }
                     });
-
-                    console.log('📦 Collected seats:', seats);
-
-                    // Build package data
-                    const packageData = {
-                        action: action,
-                        api_key_id: document.getElementById('pkg_api_key')?.value,
-                        recipient_name: document.getElementById('recipient_name')?.value || '',
-                        recipient_phone: document.getElementById('recipient_phone')?.value || '',
-                        recipient_city: document.getElementById('recipient_city_search')?.value || '',
-                        recipient_city_ref: document.getElementById('recipient_city_ref')?.value || '',
-                        recipient_warehouse: warehouseSelect?.options[warehouseSelect.selectedIndex]?.text || '',
-                        recipient_warehouse_ref: warehouseSelect?.value || '',
-                        recipient_contact: document.getElementById('recipient_contact')?.value || '',
-                        description: document.getElementById('pkg_description')?.value || 'Посилка',
-                        cost: document.getElementById('pkg_cost')?.value || '0',
-                        weight: document.getElementById('total_weight')?.value || '0',
-                        payment_method: document.getElementById('payment_method')?.value || 'Cash',
-                        payer_type: document.getElementById('payer_type')?.value || 'Recipient',
-                        cargo_type: document.getElementById('cargo_type')?.value || 'Parcel',
-                        save_client: document.getElementById('save_client')?.checked || false
-                    };
-
-                    // ADD SEATS AS SEPARATE FIELDS (seat_1_weight, seat_1_length, etc)
-                    seats.forEach((seat, index) => {
-                        const num = index + 1;
-                        packageData[`seat_${num}_weight`] = seat.weight;
-                        packageData[`seat_${num}_length`] = seat.length;
-                        packageData[`seat_${num}_width`] = seat.width;
-                        packageData[`seat_${num}_height`] = seat.height;
-                    });
-
-                    // Get sender data                    
-                    if (apiKeySelect) {
-                        const selectedOption = apiKeySelect.options[apiKeySelect.selectedIndex];
-                        packageData.sender_city_ref = selectedOption.dataset.cityRef || '';
-                        packageData.sender_ref = selectedOption.dataset.counterpartyRef || '';
-                        packageData.sender_warehouse_ref = selectedOption.dataset.warehouseRef || '';
-                        packageData.sender_contact_ref = selectedOption.dataset.contactRef || '';
-                        packageData.sender_phone = selectedOption.dataset.senderPhone || '';
-                        packageData.sender_name = selectedOption.text || '';
-                        packageData.sender_city = selectedOption.dataset.cityName || '';
-                    }
-
-                    console.log('📨 Sending to backend:', packageData);
-
-                    // Send to backend
-                    const response = await fetch('/package/create', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(packageData)
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        alert(result.message || "{{ t('package_created') }}");
-                        const modalElement = document.getElementById('createPackageModal');
-                        const modal = bootstrap.Modal.getInstance(modalElement);
-                        if (modal) modal.hide();
-                        location.reload();
-                    } else {
-                        alert("{{ t('error') }}: " + (result.error || "{{ t('unknown_error') }}"));
-                    }
-
-                } catch (error) {
-                    console.error('❌ Error:', error);
-                    alert("{{ t('failed') }}: " + error.message);
                 }
-            }
 
-            // City search for editable sender
-            senderCitySearchEdit.addEventListener('input', function () {
-                clearTimeout(senderCitySearchTimeout);
-                const query = this.value.trim();
+                // Also reset when modal is hidden
+                const modalElement = document.getElementById('createPackageModal');
+                if (modalElement) {
+                    modalElement.addEventListener('hidden.bs.modal', function () {
+                        // Reset after closing (for next time)
+                        resetCreateModal();
+                        window.editingDraftId = null;
+                    });
+                }
+            });
 
-                if (query.length < 2) {
-                    senderCityResultsEdit.style.display = 'none';
+            // Show/populate sender section when API key is selected
+            document.getElementById('pkg_api_key').addEventListener('change', function () {
+                const selectedOption = this.options[this.selectedIndex];
+                const senderSection = document.getElementById('senderSection');
+
+                if (!this.value) {
+                    senderSection.style.display = 'none';
                     return;
                 }
+                // Get sender data from API key
+                const cityName = selectedOption.dataset.cityName;
+                const warehouseName = selectedOption.dataset.warehouseName;
+                const cityRef = selectedOption.dataset.cityRef;
+                const warehouseRef = selectedOption.dataset.warehouseRef;
 
-                senderCitySearchTimeout = setTimeout(() => {
-                    fetch(`/api/search-cities?q=${encodeURIComponent(query)}`)
-                        .then(r => r.json())
-                        .then(cities => {
-                            senderCityResultsEdit.innerHTML = '';
-                            if (cities.length === 0) {
-                                senderCityResultsEdit.style.display = 'none';
-                                return;
-                            }
+                // Show sender section
+                senderSection.style.display = 'block';
 
-                            cities.forEach(city => {
-                                const item = document.createElement('a');
-                                item.href = '#';
-                                item.className = 'list-group-item list-group-item-action';
-                                item.textContent = city.name;
-                                item.onclick = (e) => {
-                                    e.preventDefault();
-                                    selectEditSenderCity(city);
-                                };
-                                senderCityResultsEdit.appendChild(item);
-                            });
+                // Populate readonly fields
+                document.getElementById('sender_city_display').value = cityName || 'Not configured';
+                document.getElementById('sender_warehouse_display').value = warehouseName || 'Not configured';
+                document.getElementById('pkg_sender_city_ref').value = cityRef || '';
+                document.getElementById('pkg_sender_warehouse_ref').value = warehouseRef || '';
 
-                            senderCityResultsEdit.style.display = 'block';
-                        });
-                }, 300);
+                // Reset edit mode
+                document.getElementById('edit_sender').checked = false;
+                document.getElementById('editableSenderFields').style.display = 'none';
             });
-        });
-        // Show/populate sender section when API key is selected
-        document.getElementById('pkg_api_key').addEventListener('change', function () {
-            const selectedOption = this.options[this.selectedIndex];
-            const senderSection = document.getElementById('senderSection');
 
-            if (!this.value) {
-                senderSection.style.display = 'none';
-                return;
+            // Toggle editable sender fields
+            document.getElementById('edit_sender').addEventListener('change', function () {
+                const editFields = document.getElementById('editableSenderFields');
+                const readonlyRow = document.querySelector('#senderSection .row:first-child');  // The readonly row
+
+                if (this.checked) {
+                    readonlyRow.style.display = 'none';
+                    editFields.style.display = 'block';
+                } else {
+                    readonlyRow.style.display = 'flex';
+                    editFields.style.display = 'none';
+                }
+            });
+
+            function selectEditSenderCity(city) {
+                senderCitySearchEdit.value = city.name;
+                document.getElementById('pkg_sender_city_ref').value = city.ref;
+                senderCityResultsEdit.style.display = 'none';
+                loadSenderWarehousesEdit(city.ref);
             }
 
-            // Get sender data from API key
-            const cityName = selectedOption.dataset.cityName;
-            const warehouseName = selectedOption.dataset.warehouseName;
-            const cityRef = selectedOption.dataset.cityRef;
-            const warehouseRef = selectedOption.dataset.warehouseRef;
+            function loadSenderWarehousesEdit(cityRef, selectedRef = null) {
+                const whSelect = document.getElementById('sender_warehouse_edit');
+                whSelect.innerHTML = '<option value="">Loading...</option>';
+                whSelect.disabled = true;
 
-            // Show sender section
-            senderSection.style.display = 'block';
-
-            // Populate readonly fields
-            document.getElementById('sender_city_display').value = cityName || 'Not configured';
-            document.getElementById('sender_warehouse_display').value = warehouseName || 'Not configured';
-            document.getElementById('pkg_sender_city_ref').value = cityRef || '';
-            document.getElementById('pkg_sender_warehouse_ref').value = warehouseRef || '';
-
-            // Reset edit mode
-            document.getElementById('edit_sender').checked = false;
-            document.getElementById('editableSenderFields').style.display = 'none';
-        });
-
-        // Toggle editable sender fields
-        document.getElementById('edit_sender').addEventListener('change', function () {
-            const editFields = document.getElementById('editableSenderFields');
-            const readonlyRow = document.querySelector('#senderSection .row:first-child');  // The readonly row
-
-            if (this.checked) {
-                readonlyRow.style.display = 'none';
-                editFields.style.display = 'block';
-            } else {
-                readonlyRow.style.display = 'flex';
-                editFields.style.display = 'none';
-            }
-        });
-
-        function selectEditSenderCity(city) {
-            senderCitySearchEdit.value = city.name;
-            document.getElementById('pkg_sender_city_ref').value = city.ref;
-            senderCityResultsEdit.style.display = 'none';
-            loadSenderWarehousesEdit(city.ref);
-        }
-
-        function loadSenderWarehousesEdit(cityRef, selectedRef = null) {
-            const whSelect = document.getElementById('sender_warehouse_edit');
-            whSelect.innerHTML = '<option value="">Loading...</option>';
-            whSelect.disabled = true;
-
-            fetch(`/api/warehouses/${cityRef}`)
-                .then(r => r.json())
-                .then(warehouses => {
-                    whSelect.innerHTML = '<option value="">Select warehouse...</option>';
-                    warehouses.forEach(wh => {
-                        const opt = document.createElement('option');
-                        opt.value = wh.ref;
-                        opt.textContent = wh.description;
-                        if (selectedRef && wh.ref === selectedRef) {
-                            opt.selected = true;
-                        }
-                        whSelect.appendChild(opt);
+                fetch(`/api/warehouses/${cityRef}`)
+                    .then(r => r.json())
+                    .then(warehouses => {
+                        whSelect.innerHTML = '<option value="">Select warehouse...</option>';
+                        warehouses.forEach(wh => {
+                            const opt = document.createElement('option');
+                            opt.value = wh.ref;
+                            opt.textContent = wh.description;
+                            if (selectedRef && wh.ref === selectedRef) {
+                                opt.selected = true;
+                            }
+                            whSelect.appendChild(opt);
+                        });
+                        whSelect.disabled = false;
                     });
-                    whSelect.disabled = false;
-                });
-        }
+            }
 
-        // Update warehouse ref when changed
-        document.getElementById('sender_warehouse_edit').addEventListener('change', function () {
-            document.getElementById('pkg_sender_warehouse_ref').value = this.value;
+            // Update warehouse ref when changed
+            document.getElementById('sender_warehouse_edit').addEventListener('change', function () {
+                document.getElementById('pkg_sender_warehouse_ref').value = this.value;
+            });
         });
     }
 </script>

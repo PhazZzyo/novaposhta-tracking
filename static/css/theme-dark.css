@@ -177,7 +177,7 @@ body[data-theme="dark"] .card:hover {
 }
 
 body[data-theme="dark"] .card-header {
-    background: linear-gradient(180deg, #3a3a3d 0%, #2d2d30 100%);
+    w background: linear-gradient(180deg, #3a3a3d 0%, #2d2d30 100%);
     border-bottom-color: rgba(255, 255, 255, .08);
     color: #ffffff;
 }

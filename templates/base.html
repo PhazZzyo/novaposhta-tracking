@@ -162,6 +162,32 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
+        // Global translations object for JavaScript
+        window.translations = {
+            // Alerts
+            contact_person_cyrillic_only: "{{ t('contact_person_cyrillic_only') }}",
+            please_select_city: "{{ t('please_select_city') }}",
+            please_select_warehouse: "{{ t('please_select_warehouse') }}",
+            please_select_api_key: "{{ t('please_select_api_key') }}",
+            error_api_key_not_found: "{{ t('error_api_key_not_found') }}",
+
+            // Success messages
+            package_created: "{{ t('package_created') }}",
+            draft_updated: "{{ t('draft_updated') }}",
+
+            // Errors
+            error: "{{ t('error') }}",
+            unknown_error: "{{ t('unknown_error') }}",
+            failed: "{{ t('failed') }}",
+            error_loading_draft: "{{ t('error_loading_draft') }}",
+
+            // Modal
+            create_package: "{{ t('create_package') }}",
+            edit_draft: "{{ t('edit_draft') }}",
+            create: "{{ t('create') }}",
+            update_draft: "{{ t('update_draft') }}"
+        };
+
         function toggleTheme() {
             const currentTheme = document.body.getAttribute('data-theme') || 'light';
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
