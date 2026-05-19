@@ -125,7 +125,7 @@ convention = {
 
 metadata = MetaData(naming_convention=convention)
 
-# Create SQLAlchemy instance ONCE
+# Create SQLAlchemy instance
 db = SQLAlchemy(metadata=metadata)
 migrate = None
 login_manager = LoginManager()
