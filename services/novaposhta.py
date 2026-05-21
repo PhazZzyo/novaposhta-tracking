@@ -10,6 +10,11 @@ NOVA_POSHTA_API = 'https://api.novaposhta.ua/v2.0/json/'
 class NovaPoshtaAPI:
     def __init__(self, api_key):
         self.api_key = api_key
+        # Reuse session for all API requests
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Content-Type': 'application/json'
+        })
 
     def _post(self, model, method, props=None):
         payload = {
@@ -18,12 +23,20 @@ class NovaPoshtaAPI:
             'calledMethod': method,
             'methodProperties': props or {}
         }
-        r = requests.post(NOVA_POSHTA_API, json=payload, timeout=30)
+        # Use self.session instead of requests
+        r = self.session.post(NOVA_POSHTA_API, json=payload, timeout=30)
         r.raise_for_status()
         data = r.json()
         if not data.get('success'):
             raise Exception(', '.join(data.get('errors', ['Unknown error'])))
         return data.get('data', []), data
+
+    def __del__(self):
+        """Close session when API object is destroyed"""
+        try:
+            self.session.close()
+        except Exception:
+            pass
 
     def get_documents_list(self, date_from, limit=100):
         return self._post('InternetDocument', 'getDocumentList', {
