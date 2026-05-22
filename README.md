@@ -195,24 +195,72 @@ sudo systemctl status novaposhta novaposhta-bot
 
 ```
 novaposhta-tracking/
-├── app.py                    # Main Flask application
-├── telegram_bot.py           # Telegram bot (separate process)
+├── app.py                    # Entry point - create_app()
+├── telegram_bot.py           # Telegram bot process
+├── create_test_packages.py   # Seed/test package generator
+├── extensions.py             # Flask extension initialization
+├── models.py                 # DB models
 ├── translations.py           # EN/UK translations
 ├── requirements.txt          # Python dependencies
 ├── setup.sh                  # One-command setup script
 ├── .env.example              # Environment variables template
+├── .flaskenv                 # Flask environment settings
 ├── docs/
 │   ├── APP_DEPLOYMENT.md     # Flask app deployment guide
 │   └── BOT_DEPLOYMENT.md     # Telegram bot deployment guide
+├── migrations/
+│   ├── README
+│   ├── alembic.ini
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions/
+│       ├── 2b46cee3169c_merge_heads.py
+│       ├── 2c8e0644a6b7_add_cost_to_package.py
+│       ├── 43c7e5623b8b_add_telegram_integration_tables.py
+│       ├── 700ad2f4ff7e_add_seats_amount_to_package.py
+│       └── a08dbc11dc64_add_seats_data_json_column.py
+├── routes/
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── api.py
+│   ├── auth.py
+│   ├── packages.py
+│   └── settings.py
+├── services/
+│   ├── __init__.py
+│   ├── notifications.py
+│   └── novaposhta.py
+├── static/
+│   ├── css/
+│   │   ├── style.css
+│   │   ├── theme-light.css
+│   │   └── theme-dark.css
+│   ├── favicon/
+│   │   ├── android-chrome-192x192.png
+│   │   ├── android-chrome-512x512.png
+│   │   ├── apple-touch-icon.png
+│   │   ├── favicon-16x16.png
+│   │   ├── favicon-32x32.png
+│   │   ├── favicon-96x96.png
+│   │   ├── favicon.ico
+│   │   ├── favicon.svg
+│   │   └── site.webmanifest
+│   ├── img/
+│   │   ├── logo.webp
+│   │   └── logow.webp
+│   └── js/
+│       └── app.js
 ├── templates/
 │   ├── base.html             # Base layout with navbar
 │   ├── login.html
 │   ├── dashboard.html        # Status cards + trend chart
 │   ├── packages.html         # Package list with filters
 │   ├── package_detail.html
-│   ├── create_package_modal.html
-│   ├── telegram_settings.html
 │   ├── settings.html
+│   ├── telegram_settings.html
+│   ├── change_password.html
+│   ├── partials/
+│   │   └── create_package_modal.html
 │   └── admin/
 │       ├── users.html
 │       ├── api_keys.html
