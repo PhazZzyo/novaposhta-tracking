@@ -4,7 +4,7 @@ A comprehensive web application for tracking Nova Poshta shipments across multip
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green)
-![Version](https://img.shields.io/badge/version-1.3-orange)
+![Version](https://img.shields.io/badge/version-1.4-orange)
 ![License](https://img.shields.io/badge/license-Private-red)
 
 ---
@@ -297,6 +297,16 @@ python3 telegram_bot.py
 ---
 
 ## 📝 Changelog
+
+### v1.4 (2026-05-22) - Current
+- ✅ Major architecture refactor
+- ✅ Application factory pattern (create_app())
+- ✅ Split into blueprints (auth, packages, admin, settings, api)
+- ✅ Services layer (novaposhta, notifications)
+- ✅ Flask-Migrate for proper database migrations
+- ✅ HTTP session reuse for faster Nova Poshta API calls
+- ✅ Eliminated code duplication with shared helpers
+- ✅ Proper Python logging instead of print statements
 
 ### v1.3 (2026-05-15) - Current
 - ✅ Telegram bot integration (@Orthotrack_bot)

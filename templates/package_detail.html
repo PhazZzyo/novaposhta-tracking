@@ -71,7 +71,7 @@
 
 <!-- Invoice Button - Smart Enable/Disable -->
 {% if can_view_invoice(package) %}
-<a href="{{ url_for('package_invoice', tracking_number=package.tracking_number) }}" class="btn btn-outline-primary"
+<a href="{{ url_for('packages.package_invoice', tracking_number=package.tracking_number) }}" class="btn btn-outline-primary"
     target="_blank">
     <i class="bi bi-file-pdf me-2"></i>{{ t('view_invoice') }}
 </a>

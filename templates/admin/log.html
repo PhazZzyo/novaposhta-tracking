@@ -70,7 +70,7 @@
                 <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
                     <i class="bi bi-funnel"></i>
                 </button>
-                <a href="{{ url_for('admin_log') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ url_for('admin.admin_log') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-x"></i>
                 </a>
             </div>
@@ -147,7 +147,7 @@
                             · <i class="bi bi-arrow-clockwise"></i> {{ log.packages_updated or 0 }} updated
                         </small>
                         {% endif %}
-                        <a href="{{ url_for('admin_log_details', log_id=log.id) }}"
+                        <a href="{{ url_for('admin.admin_log_details', log_id=log.id) }}"
                             class="btn btn-sm btn-outline-secondary ms-2 float-end" title="View details">
                             <i class="bi bi-file-text"></i>
                         </a>

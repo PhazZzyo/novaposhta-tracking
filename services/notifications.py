@@ -2,13 +2,15 @@
 import os
 import requests
 from models import User, APIKey, UserAPITracking
+import logging
+logger = logging.getLogger(__name__)
 
 
 def send_telegram_notification(telegram_user_id: int, message: str):
     """Send Telegram notification synchronously using requests"""
     bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
     if not bot_token:
-        print("❌ No bot token found!")
+        logger.error("No bot token found!")
         return False
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -20,11 +22,11 @@ def send_telegram_notification(telegram_user_id: int, message: str):
 
     try:
         response = requests.post(url, json=payload, timeout=10)
-        result = response.json()
-        print(f"📤 Telegram API response: {result}")
+        result = response.json()        
+        logger.debug(f"Telegram API response: {result}")
         return result.get('ok', False)
-    except Exception as e:
-        print(f"❌ Failed to send Telegram notification: {e}")
+    except Exception as e:        
+        logger.error(f"Failed to send: {e}")
         return False
 
 
@@ -57,11 +59,10 @@ def notify_package_status_change(package, old_status_code, new_status_code):
         User.telegram_notifications == True
     ).all()
 
-    print(f"📢 Users to notify: {[u.username for u in users_to_notify]}")
-    print(f"📢 Their telegram IDs: {[u.telegram_user_id for u in users_to_notify]}")
+    logger.debug(f"Notifying {len(users_to_notify)} users: {[u.username for u in users_to_notify]}")
 
     if not users_to_notify:
-        print("❌ No users to notify!")
+        logger.error("No users to notify!")
         return
 
     # Build message
@@ -83,12 +84,12 @@ def notify_package_status_change(package, old_status_code, new_status_code):
         f"{urgent}"
     )
 
-    print(f"📢 Sending message: {message}")
+    logger.debug(f"Sending message: {message}")
 
     # Send to all relevant users
     for user in users_to_notify:
         result = send_telegram_notification(user.telegram_user_id, message)
         if result:
-            print(f"✅ Notified {user.username} (TG: {user.telegram_user_id})")
+            logger.debug(f"Notified {user.username} (TG: {user.telegram_user_id})")            
         else:
-            print(f"❌ Failed to notify {user.username}")
+            logger.error(f"Failed to notify {user.username}")

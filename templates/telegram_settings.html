@@ -46,7 +46,7 @@
                         </div>
 
                         <!-- Unlink Button -->
-                        <form method="POST" action="{{ url_for('telegram_unlink') }}" 
+                        <form method="POST" action="{{ url_for('settings.telegram_unlink') }}" 
                               onsubmit="return confirm('{{ t('confirm_unlink_telegram') }}');">
                             <button type="submit" class="btn btn-danger">
                                 <i class="bi bi-x-circle me-2"></i>
@@ -94,7 +94,7 @@
 
             <!-- Back to Settings -->
             <div class="mt-3">
-                <a href="{{ url_for('settings') }}" class="btn btn-secondary">
+                <a href="{{ url_for('settings.settings') }}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left me-2"></i>
                     {{ t('back_to_settings') }}
                 </a>

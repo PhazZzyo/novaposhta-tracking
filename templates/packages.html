@@ -136,7 +136,7 @@
                         {% else %}
                         <!-- Sent package: Show invoice button (enabled or disabled) -->
                         {% if can_view_invoice(pkg) %}
-                        <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
+                        <a href="{{ url_for('packages.package_invoice', tracking_number=pkg.tracking_number) }}"
                             class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
                             <i class="bi bi-file-pdf"></i>
                         </a>
@@ -244,7 +244,7 @@
                             </button>
                         </div>
                         {% elif can_view_invoice(pkg) %}
-                        <a href="{{ url_for('package_invoice', tracking_number=pkg.tracking_number) }}"
+                        <a href="{{ url_for('packages.package_invoice', tracking_number=pkg.tracking_number) }}"
                             class="btn btn-sm btn-outline-primary" target="_blank" title="{{ t('view_invoice') }}">
                             <i class="bi bi-file-pdf me-1"></i>
                             {{ t('invoice') }}
@@ -334,7 +334,8 @@
                                 t('days_30') }}</option>
                         </select></div>
                 </div>
-                <div class="modal-footer"><a href="{{ url_for('packages') }}" class="btn btn-outline-secondary">{{
+                <div class="modal-footer"><a href="{{ url_for('packages.packages') }}"
+                        class="btn btn-outline-secondary">{{
                         t('reset') }}</a><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{
                         t('cancel') }}</button><button type="submit" class="btn btn-primary">{{ t('apply') }}</button>
                 </div>

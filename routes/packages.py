@@ -8,6 +8,9 @@ from sqlalchemy import desc
 from extensions import db
 from models import Package, APIKey, UserAPITracking, Client, SyncLog
 from services.novaposhta import NovaPoshtaAPI
+import logging
+logger = logging.getLogger(__name__)
+
 
 packages_bp = Blueprint('packages', __name__)
 
@@ -118,14 +121,14 @@ def _get_recipient_uuids(data, api_key_obj):
 	).first()
 
 	if client and client.counterparty_ref and client.contact_ref:
-		print(f"✅ Using cached recipient UUIDs")
+		logger.info(f"Using cached recipient UUIDs")
 		return {
 			'counterparty_ref': client.counterparty_ref,
 			'contact_ref': client.contact_ref
 		}
 
 	# Fetch from Nova Poshta
-	print(f"⚙️ Fetching recipient UUIDs from Nova Poshta...")
+	logger.info(f"Fetching recipient UUIDs from Nova Poshta...")
 	api = NovaPoshtaAPI(api_key_obj.api_key)
 	return api.create_or_get_recipient(
 		data['recipient_name'],
