@@ -24,6 +24,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from app import create_app
+    from extensions import db
+    from models import User, Package, APIKey, UserAPITracking, TelegramLinkCode
+    app = create_app()
+    DB_AVAILABLE = True
+    logger.info("✅ Database connected")
+except Exception as e:
+    DB_AVAILABLE = False
+    logger.warning(f"⚠️ Database not available: {e}")
+
 # Bot token
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not BOT_TOKEN:
