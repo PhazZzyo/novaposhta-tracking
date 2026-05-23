@@ -107,6 +107,23 @@ python3 telegram_bot.py
 
 ---
 
+## 🔄 Updating
+
+```bash
+cd /home/sysadmin/novaposhta-tracking
+
+# One command deploy
+./deploy.sh
+```
+
+This will:
+1. Pull latest code from GitHub
+2. Install new dependencies
+3. Run database migrations
+4. Restart services
+
+---
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -196,81 +213,28 @@ sudo systemctl status novaposhta novaposhta-bot
 ```
 novaposhta-tracking/
 ├── app.py                    # Entry point - create_app()
-├── telegram_bot.py           # Telegram bot process
-├── create_test_packages.py   # Seed/test package generator
-├── extensions.py             # Flask extension initialization
-├── models.py                 # DB models
+├── extensions.py             # db, login_manager, migrate instances
+├── models.py                 # All database models
+├── telegram_bot.py           # Telegram bot (separate process)
 ├── translations.py           # EN/UK translations
 ├── requirements.txt          # Python dependencies
 ├── setup.sh                  # One-command setup script
+├── deploy.sh                 # One-command deployment script
 ├── .env.example              # Environment variables template
-├── .flaskenv                 # Flask environment settings
 ├── docs/
 │   ├── APP_DEPLOYMENT.md     # Flask app deployment guide
 │   └── BOT_DEPLOYMENT.md     # Telegram bot deployment guide
-├── migrations/
-│   ├── README
-│   ├── alembic.ini
-│   ├── env.py
-│   ├── script.py.mako
-│   └── versions/
-│       ├── 2b46cee3169c_merge_heads.py
-│       ├── 2c8e0644a6b7_add_cost_to_package.py
-│       ├── 43c7e5623b8b_add_telegram_integration_tables.py
-│       ├── 700ad2f4ff7e_add_seats_amount_to_package.py
-│       └── a08dbc11dc64_add_seats_data_json_column.py
 ├── routes/
-│   ├── __init__.py
-│   ├── admin.py
-│   ├── api.py
-│   ├── auth.py
-│   ├── packages.py
-│   └── settings.py
+│   ├── auth.py               # login, logout, change-password
+│   ├── packages.py           # packages, create, sync, drafts
+│   ├── admin.py              # users, api-keys, logs
+│   ├── settings.py           # settings, theme, telegram
+│   └── api.py                # cities, warehouses, clients
 ├── services/
-│   ├── __init__.py
-│   ├── notifications.py
-│   └── novaposhta.py
-├── static/
-│   ├── css/
-│   │   ├── style.css
-│   │   ├── theme-light.css
-│   │   └── theme-dark.css
-│   ├── favicon/
-│   │   ├── android-chrome-192x192.png
-│   │   ├── android-chrome-512x512.png
-│   │   ├── apple-touch-icon.png
-│   │   ├── favicon-16x16.png
-│   │   ├── favicon-32x32.png
-│   │   ├── favicon-96x96.png
-│   │   ├── favicon.ico
-│   │   ├── favicon.svg
-│   │   └── site.webmanifest
-│   ├── img/
-│   │   ├── logo.webp
-│   │   └── logow.webp
-│   └── js/
-│       └── app.js
+│   ├── novaposhta.py         # Nova Poshta API class
+│   └── notifications.py      # Telegram notification sender
 ├── templates/
-│   ├── base.html             # Base layout with navbar
-│   ├── login.html
-│   ├── dashboard.html        # Status cards + trend chart
-│   ├── packages.html         # Package list with filters
-│   ├── package_detail.html
-│   ├── settings.html
-│   ├── telegram_settings.html
-│   ├── change_password.html
-│   ├── partials/
-│   │   └── create_package_modal.html
-│   └── admin/
-│       ├── users.html
-│       ├── api_keys.html
-│       └── log.html
 └── static/
-    ├── css/
-    │   ├── style.css
-    │   ├── theme-light.css
-    │   └── theme-dark.css
-    └── js/
 ```
 
 ---
@@ -355,6 +319,7 @@ python3 telegram_bot.py
 - ✅ HTTP session reuse for faster Nova Poshta API calls
 - ✅ Eliminated code duplication with shared helpers
 - ✅ Proper Python logging instead of print statements
+- ✅ One-command deployment script (deploy.sh)
 
 ### v1.3 (2026-05-15) - Current
 - ✅ Telegram bot integration (@Orthotrack_bot)
