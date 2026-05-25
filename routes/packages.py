@@ -243,7 +243,14 @@ def dashboard():
 		trends = _get_package_trends(api_ids, days=30)
 	else:
 		total = in_transit = at_branch = completed = 0
-		trends = {'dates': [], 'in_transit': [], 'at_branch': [], 'completed': []}
+		trends = {
+			'dates': [],
+			'in_transit': [],
+			'at_branch': [],
+			'completed': [],
+			'incoming': [],
+			'outgoing': []
+		}
 
 	return render_template('dashboard.html',
 		api_keys=api_keys,
