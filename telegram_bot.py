@@ -32,26 +32,15 @@ try:
     from models import User, Package, APIKey, UserAPITracking, TelegramLinkCode
     app = create_app()
     DB_AVAILABLE = True
-    logger.info("✅ Database connected")
+    logger.info("Database connected")
 except Exception as e:
     DB_AVAILABLE = False
-    logger.warning(f"⚠️ Database not available: {e}")
+    logger.warning(f"Database not available: {e}")
 
 # Bot token
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN not found in environment variables!")
-
-# Database import - ensure we can access the Flask app context and models
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-try:
-    from app import app, db, User, Package, APIKey, UserAPITracking, TelegramLinkCode
-    DB_AVAILABLE = True
-    logger.info("✅ Database connected")
-except Exception as e:
-    DB_AVAILABLE = False
-    logger.warning(f"⚠️ Database not available: {e}")
 
 # Helper function to get user by Telegram ID
 def get_user_by_telegram_id(telegram_user_id):
@@ -362,14 +351,14 @@ async def error_handler(update, context):
     from telegram.error import TimedOut, NetworkError
     
     if isinstance(context.error, TimedOut):
-        logger.warning("⚠️ Telegram timeout - will retry automatically")
+        logger.warning("Telegram timeout - will retry automatically")
         return
     
     if isinstance(context.error, NetworkError):
-        logger.warning(f"⚠️ Network error: {context.error}")
+        logger.warning(f"Network error: {context.error}")
         return
     
-    logger.error(f"❌ Unexpected error: {context.error}")
+    logger.error(f"Unexpected error: {context.error}")
 
 async def set_commands(app):
     """Set bot commands visible in Telegram menu"""
