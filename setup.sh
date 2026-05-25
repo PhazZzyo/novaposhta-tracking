@@ -28,10 +28,24 @@ else
 fi
 
 echo -e "${GREEN}[4/4] Initialising database...${NC}"
-python3 app.py &
-APP_PID=$!
-sleep 3
-kill $APP_PID 2>/dev/null || true
+
+# Use venv python directly
+source venv/bin/activate
+
+# Create tables using Flask-Migrate
+flask db upgrade
+
+# If no migrations exist yet, initialize
+if [ $? -ne 0 ]; then
+    echo "Running db.create_all() as fallback..."
+    python3 -c "
+from app import create_app, db
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print('✅ Tables created!')
+"
+fi
 
 echo ""
 echo "========================================"
