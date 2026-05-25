@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo, available_timezones
 from collections import defaultdict
 from functools import wraps
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -363,6 +364,36 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 
 
 # ============================================================
+# SCHEDULER FOR AUTO-SYNC
+# ============================================================
+
+def run_auto_sync():
+    """Auto sync all active API keys"""
+    with app.app_context():
+        from models import APIKey
+        keys = APIKey.query.filter_by(is_active=True, auto_sync=True).all()
+        for key in keys:
+            ok, msg = cooldown_ok(key)
+            if ok:
+                sync_packages(key, days=3, sync_type='auto', direction='both')
+                print(f"✅ Auto-synced: {key.label}")
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        run_auto_sync,
+        'cron',
+        # Working hours: 8:00 - 20:00, every 30 minutes
+        hour='8-20',
+        minute='*/30',
+        timezone='Europe/Kyiv'
+    )
+    scheduler.start()
+    return scheduler
+
+
+
+# ============================================================
 # APP FACTORY
 # ============================================================
 
@@ -423,6 +454,10 @@ def create_app():
 	app.register_blueprint(admin_bp)
 	app.register_blueprint(settings_bp)
 	app.register_blueprint(api_bp)
+
+	# Start scheduler
+	if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+		scheduler = start_scheduler()
 
 	return app
 
