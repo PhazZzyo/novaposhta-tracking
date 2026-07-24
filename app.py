@@ -392,7 +392,7 @@ def start_scheduler():
 		minute='*/30',
 		timezone='Europe/Kyiv',
 		id='auto_sync',
-		replace_existing=True  # Prevent duplicates
+		replace_existing=True,  # Prevent duplicates
 		misfire_grace_time=300  # Allow 5 min late execution
 	)
 	
