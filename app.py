@@ -1,6 +1,8 @@
 # app.py
 import os
 import time
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo, available_timezones
 from collections import defaultdict
@@ -368,28 +370,43 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 # ============================================================
 
 def run_auto_sync():
-    """Auto sync all active API keys"""
-    with app.app_context():
-        from models import APIKey
-        keys = APIKey.query.filter_by(is_active=True, auto_sync=True).all()
-        for key in keys:
-            ok, msg = cooldown_ok(key)
-            if ok:
-                sync_packages(key, days=3, sync_type='auto', direction='both')
-                print(f"✅ Auto-synced: {key.label}")
+	"""Auto sync all active API keys"""
+	with app.app_context():
+		from models import APIKey
+		keys = APIKey.query.filter_by(is_active=True, auto_sync=True).all()
+		for key in keys:
+			ok, msg = cooldown_ok(key)
+			if ok:
+				sync_packages(key, days=3, sync_type='auto', direction='both')
+				logger.info(f"Auto-synced: {key.label}")
+			else:
+				logger.info(f"Skipped {key.label}: {msg}")
 
 def start_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        run_auto_sync,
-        'cron',
-        # Working hours: 8:00 - 20:00, every 30 minutes
-        hour='8-20',
-        minute='*/30',
-        timezone='Europe/Kyiv'
-    )
-    scheduler.start()
-    return scheduler
+	scheduler = BackgroundScheduler()
+	
+	scheduler.add_job(
+		run_auto_sync,
+		'cron',
+		hour='8-20',
+		minute='*/30',
+		timezone='Europe/Kyiv',
+		id='auto_sync',
+		replace_existing=True  # Prevent duplicates
+		misfire_grace_time=300  # Allow 5 min late execution
+	)
+	
+	# Run once on startup
+	scheduler.add_job(
+		run_auto_sync,
+		'date',
+		id='startup_sync',
+		replace_existing=True  # Prevent duplicates
+	)
+	
+	scheduler.start()
+	logger.info("✅ Scheduler started - syncing every 30min (8:00-20:00 Kyiv time)")
+	return scheduler
 
 
 
