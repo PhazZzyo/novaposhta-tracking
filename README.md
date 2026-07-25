@@ -33,7 +33,7 @@ A comprehensive web application for tracking Nova Poshta shipments across multip
 - Direct PDF invoice generation
 - Multi-seat package support with dimensions
 
-### 🤖 Telegram Bot (@Orthotrack_bot)
+### 🤖 Telegram Bot (@your_bot)
 - Account linking via secure code
 - Real-time notifications:
   - 📍 Package arrived at branch
@@ -110,7 +110,7 @@ python3 telegram_bot.py
 ## 🔄 Updating
 
 ```bash
-cd /home/sysadmin/novaposhta-tracking
+cd /home/user/novaposhta-tracking
 
 # One command deploy
 ./deploy.sh
@@ -186,7 +186,7 @@ sudo systemctl status novaposhta novaposhta-bot
 
 ### Setting Up Telegram Notifications
 
-1. Find [@Orthotrack_bot](https://t.me/Orthotrack_bot) in Telegram
+1. Find [@your_bot](https://t.me/your_bot) in Telegram
 2. Send `/start` to get a linking code
 3. In the web app go to **Settings → Telegram Bot**
 4. Enter the linking code
@@ -338,7 +338,7 @@ python3 telegram_bot.py
 - ✅ One-command deployment script (deploy.sh)
 
 ### v1.3 (2026-05-15)
-- ✅ Telegram bot integration (@Orthotrack_bot)
+- ✅ Telegram bot integration (@your_bot)
 - ✅ Real-time notifications (at branch, delivered)
 - ✅ Bot commands: /packages, /atbranch, /settings
 - ✅ Persistent keyboard menu in bot
