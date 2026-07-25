@@ -5,7 +5,25 @@
 - Linux server (Ubuntu 22.04+ recommended)
 - Python 3.12+
 - Virtual environment set up
-- `.env` file configured
+- `.env` file configured (see `.env.example`)
+
+---
+
+## Architecture (v1.4+)
+
+The app uses the Flask **application factory pattern**:
+
+```
+app.py            → create_app() entry point, module-level app = create_app()
+extensions.py     → db, login_manager, migrate instances
+models.py         → all database models
+routes/           → blueprints (auth, packages, admin, settings, api)
+services/         → business logic (novaposhta.py, notifications.py)
+```
+
+This app is deployed alongside two companion processes — the Telegram bot
+and the auto-sync scheduler — see `docs/BOT_DEPLOYMENT.md` for details on
+those. All three are managed by `install_services.sh` / `deploy.sh`.
 
 ---
 
@@ -21,8 +39,6 @@ pip install gunicorn
 
 ## 2. Test Gunicorn Manually
 
-Before setting up the service, test that gunicorn works:
-
 ```bash
 cd /home/sysadmin/np
 source venv/bin/activate
@@ -35,42 +51,29 @@ Press `Ctrl+C` to stop.
 
 ---
 
-## 3. Create systemd Service
+## 3. Set Up Flask-Migrate
 
+The app uses Flask-Migrate for schema changes. `.flaskenv` should contain:
+
+```
+FLASK_APP=app:create_app
+```
+
+First time only:
 ```bash
-sudo nano /etc/systemd/system/novaposhta.service
+flask db init          # only if migrations/ doesn't exist yet
+flask db migrate -m "Initial migration"
+flask db upgrade
 ```
 
-Paste this content:
+On every deploy after that, `flask db upgrade` is run automatically by
+`deploy.sh`.
 
-```ini
-[Unit]
-Description=Nova Poshta Tracking App
-After=network.target
-Wants=network-online.target
-
-[Service]
-User=sysadmin
-Group=sysadmin
-WorkingDirectory=/home/sysadmin/np
-Environment="PATH=/home/sysadmin/np/venv/bin"
-EnvironmentFile=/home/sysadmin/np/.env
-ExecStart=/home/sysadmin/np/venv/bin/gunicorn \
-    --workers 4 \
-    --bind 0.0.0.0:5000 \
-    --timeout 120 \
-    --access-logfile /home/sysadmin/np/logs/access.log \
-    --error-logfile /home/sysadmin/np/logs/error.log \
-    --log-level info \
-    app:app
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
+> If you ever hit "multiple heads" during a merge, resolve with
+> `flask db merge -m "merge heads" <rev1> <rev2>` then `flask db upgrade` -
+> do **not** use `flask db stamp head` to skip a migration, since that marks
+> it as applied without actually running it and can leave tables/columns
+> missing (this bit us once with the `telegram_link_codes` table).
 
 ---
 
@@ -82,23 +85,30 @@ mkdir -p /home/sysadmin/np/logs
 
 ---
 
-## 5. Enable and Start Service
+## 5. Install All Services (App, Bot, Scheduler)
+
+Use the automated installer instead of writing systemd unit files by hand -
+it's idempotent and creates all three services in one go:
 
 ```bash
-# Reload systemd to pick up new service
-sudo systemctl daemon-reload
-
-# Enable service to start on boot
-sudo systemctl enable novaposhta
-
-# Start service now
-sudo systemctl start novaposhta
-
-# Check status
-sudo systemctl status novaposhta
+cd /home/sysadmin/np
+chmod +x install_services.sh
+bash install_services.sh
 ```
 
-Expected output:
+See `docs/BOT_DEPLOYMENT.md` for details on the bot and scheduler services.
+
+---
+
+## 6. Enable and Start Services
+
+```bash
+sudo systemctl enable novaposhta novaposhta-bot novaposhta-scheduler
+sudo systemctl start novaposhta novaposhta-bot novaposhta-scheduler
+sudo systemctl status novaposhta novaposhta-bot novaposhta-scheduler
+```
+
+Expected output for the app:
 ```
 ● novaposhta.service - Nova Poshta Tracking App
      Loaded: loaded (/etc/systemd/system/novaposhta.service; enabled)
@@ -107,7 +117,7 @@ Expected output:
 
 ---
 
-## 6. Verify It's Running
+## 7. Verify It's Running
 
 ```bash
 # Check if port 5000 is listening
@@ -148,20 +158,30 @@ tail -f /home/sysadmin/np/logs/error.log
 
 ## Updating the App
 
+The recommended way is the one-command deploy script, which handles
+everything (code, dependencies, migrations, services, restart):
+
 ```bash
-# Pull latest code
+cd /home/sysadmin/np
+./deploy.sh
+```
+
+`deploy.sh` does the following:
+1. `git pull origin main`
+2. Installs updated dependencies (`pip install -r requirements.txt`)
+3. Runs `flask db upgrade`
+4. Runs `install_services.sh` (creates/updates systemd services if changed)
+5. Restarts `novaposhta`, `novaposhta-bot`, `novaposhta-scheduler`
+
+### Manual equivalent, if needed:
+```bash
 cd /home/sysadmin/np
 git pull
-
-# Activate venv and install new dependencies if any
 source venv/bin/activate
 pip install -r requirements.txt
-
-# Run migrations if needed
 flask db upgrade
-
-# Restart service
-sudo systemctl restart novaposhta
+bash install_services.sh
+sudo systemctl restart novaposhta novaposhta-bot novaposhta-scheduler
 ```
 
 ---
@@ -170,34 +190,53 @@ sudo systemctl restart novaposhta
 
 ### Service won't start
 ```bash
-# Check detailed error
 sudo journalctl -u novaposhta -n 50 --no-pager
-
-# Check if port is already in use
 ss -tlnp | grep 5000
 ```
 
 ### App crashes on startup
 ```bash
-# Test manually first
 cd /home/sysadmin/np
 source venv/bin/activate
 python app.py
 ```
 
+### "no such column" / "no such table" errors
+Usually means a migration wasn't applied. Run:
+```bash
+flask db upgrade
+```
+If that reports nothing to do but the column/table is genuinely missing,
+fall back to the ORM's own table creation as a safety net (does not touch
+existing tables/columns, only creates missing ones):
+```bash
+python3 -c "
+from app import create_app, db
+app = create_app()
+with app.app_context():
+    db.create_all()
+"
+```
+Then investigate why the migration didn't create it (see the Flask-Migrate
+note above about `stamp head`).
+
 ### Permission errors
 ```bash
-# Fix ownership
 sudo chown -R sysadmin:sysadmin /home/sysadmin/np
 ```
 
 ### Environment variables not loading
 ```bash
-# Check .env file exists
 cat /home/sysadmin/np/.env
+sudo systemctl cat novaposhta   # confirm EnvironmentFile path matches
+```
 
-# Check EnvironmentFile path in service matches
-sudo systemctl cat novaposhta
+### Logs directory not writable
+```bash
+mkdir -p /home/sysadmin/np/logs
+chown -R sysadmin:sysadmin /home/sysadmin/np/logs
+chmod 755 /home/sysadmin/np/logs
+sudo systemctl restart novaposhta
 ```
 
 ---
@@ -206,8 +245,9 @@ sudo systemctl cat novaposhta
 
 - [ ] `DEBUG=False` in `.env`
 - [ ] `SECRET_KEY` is a strong random string
+- [ ] `FLASK_APP=app:create_app` in `.flaskenv`
 - [ ] Database backups configured
-- [ ] Logs directory created
-- [ ] Firewall configured (port 5000 open)
-- [ ] Service enabled and running
+- [ ] Logs directory created and writable
+- [ ] Firewall configured (port 5000 open, or behind nginx on 80/443)
+- [ ] All 3 services (`novaposhta`, `novaposhta-bot`, `novaposhta-scheduler`) enabled and running
 - [ ] Tested after reboot
