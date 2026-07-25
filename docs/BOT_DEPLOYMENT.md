@@ -31,12 +31,12 @@ novaposhta-scheduler.service  → Auto-sync scheduler (single process)
 ## 1. Test Bot Manually First
 
 ```bash
-cd /home/sysadmin/np
+cd /home/user/novaposhta-tracking
 source venv/bin/activate
 python telegram_bot.py
 ```
 
-Send `/start` to @Orthotrack_bot in Telegram.
+Send `/start` to @your_bot in Telegram.
 If it responds, press `Ctrl+C` and proceed.
 
 ---
@@ -44,7 +44,7 @@ If it responds, press `Ctrl+C` and proceed.
 ## 2. Test Scheduler Manually First
 
 ```bash
-cd /home/sysadmin/np
+cd /home/user/novaposhta-tracking
 source venv/bin/activate
 python scheduler_service.py
 ```
@@ -67,7 +67,7 @@ It is **idempotent** — safe to run every deploy, only creates/updates a
 service file if it doesn't exist or its content changed.
 
 ```bash
-cd /home/sysadmin/np
+cd /home/user/novaposhta-tracking
 chmod +x install_services.sh
 bash install_services.sh
 ```
@@ -109,7 +109,7 @@ Expected output for each:
 ```bash
 sudo journalctl -u novaposhta-bot -f
 ```
-Send `/start` to @Orthotrack_bot - you should see log entries appear.
+Send `/start` to @your_bot - you should see log entries appear.
 
 ### Scheduler:
 ```bash
@@ -161,7 +161,7 @@ migrations, updates services (via `install_services.sh`), and restarts
 everything:
 
 ```bash
-cd /home/sysadmin/np
+cd /home/user/novaposhta-tracking
 ./deploy.sh
 ```
 
@@ -183,7 +183,7 @@ sudo journalctl -u novaposhta-scheduler -n 50 --no-pager
 
 Check that API keys have `auto_sync=True` and `is_active=True`:
 ```bash
-cd /home/sysadmin/np
+cd /home/user/novaposhta-tracking
 source venv/bin/activate
 python3 -c "
 from app import create_app
@@ -200,19 +200,19 @@ This means the scheduler is running in more than one process. Confirm
 only `novaposhta-scheduler.service` is running the scheduler, and that
 `app.py` itself does **not** start a scheduler:
 ```bash
-grep -n "scheduler\|apscheduler" /home/sysadmin/np/app.py
+grep -n "scheduler\|apscheduler" /home/user/novaposhta-tracking/app.py
 # should return nothing
 ```
 
 ### Token not found error
 ```bash
-cat /home/sysadmin/np/.env | grep TELEGRAM
+cat /home/user/novaposhta-tracking/.env | grep TELEGRAM
 # should show: TELEGRAM_BOT_TOKEN=your_token_here
 ```
 
 ### Import errors (can't import from app.py)
 ```bash
-cd /home/sysadmin/np
+cd /home/user/novaposhta-tracking
 source venv/bin/activate
 pip install -r requirements.txt
 python -c "from app import create_app; from models import User, Package"
