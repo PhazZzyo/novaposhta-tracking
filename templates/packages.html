@@ -182,7 +182,7 @@
                             {% endif %}
                             <span class="pkg-field">
                                 <i class="bi bi-calendar3"></i>
-                                {{ pkg.date_created.strftime('%d.%m') if pkg.date_created else '-' }}
+                                {{ format_datetime(pkg.date_created, '%d.%m') if pkg.date_created else '-' }}
                             </span>
                         </div>
                         <!-- Sender Info -->

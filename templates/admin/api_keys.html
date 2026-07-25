@@ -37,7 +37,7 @@
                 <td>{% if key.counterparty_ref %}<i class="bi bi-check-circle text-success"></i>{% else %}-{% endif %}</td>
                 <td>{% if key.auto_sync %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
                 <td>{% if key.is_active %}<span class="badge bg-success">{{ t('active') }}</span>{% else %}<span class="badge bg-danger">{{ t('inactive') }}</span>{% endif %}</td>
-                <td>{{ key.last_sync.strftime('%d.%m %H:%M') if key.last_sync else t('never') }}</td>
+                <td>{{ format_datetime(key.last_sync, '%d.%m %H:%M') if key.last_sync else t('never') }}</td>
                 <td><a href="{{ url_for('admin.admin_edit_api_key', key_id=key.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> {{ t('edit') }}</a></td>
             </tr>
             {% endfor %}

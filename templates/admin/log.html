@@ -97,8 +97,8 @@
                 {% for log in logs %}
                 <tr class="{% if log.status == 'error' %}table-danger-subtle{% endif %}">
                     <td class="text-nowrap">
-                        <span class="fw-semibold">{{ log.created_at.strftime('%d.%m.%Y') }}</span>
-                        <br><small class="text-muted">{{ log.created_at.strftime('%H:%M:%S') }}</small>
+                        <span class="fw-semibold">{{ format_date(log.created_at) }}</span>
+                        <br><small class="text-muted">{{ format_time(log.created_at) }}</small>
                     </td>
                     <td>
                         {% if log.sync_type == 'manual' %}

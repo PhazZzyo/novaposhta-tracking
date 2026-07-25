@@ -134,7 +134,7 @@
                 <tr>
                     <td><i class="bi bi-key text-primary me-2"></i><strong>{{ key.label }}</strong></td>
                     <td>{% if key.last_sync %}<span class="text-success"><i class="bi bi-check-circle me-1"></i>{{
-                            key.last_sync.strftime('%d.%m %H:%M') }}</span>{% else %}<span class="text-muted">{{
+                            format_datetime(key.last_sync, '%d.%m %H:%M') }}</span>{% else %}<span class="text-muted">{{
                             t('never') }}</span>{% endif %}</td>
                     <td>{% if key.auto_sync %}<span class="badge bg-success"><i
                                 class="bi bi-arrow-repeat me-1"></i>Auto</span>{% else %}<span

@@ -26,7 +26,7 @@
                     {% if user.is_active %}<span class="badge bg-success">{{ t('active') }}</span>
                     {% else %}<span class="badge bg-secondary">{{ t('inactive') }}</span>{% endif %}
                 </td>
-                <td>{{ user.last_login.strftime('%d.%m.%Y %H:%M') if user.last_login else t('never') }}</td>
+                <td>{{ format_datetime(user.last_login) if user.last_login else t('never') }}</td>
                 <td>
                     <a href="{{ url_for('admin.admin_edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-pencil"></i> {{ t('edit') }}
