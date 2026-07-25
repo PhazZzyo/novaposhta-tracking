@@ -4,7 +4,7 @@ A comprehensive web application for tracking Nova Poshta shipments across multip
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green)
-![Version](https://img.shields.io/badge/version-1.4-orange)
+![Version](https://img.shields.io/badge/version-1.5-orange)
 ![License](https://img.shields.io/badge/license-Private-red)
 
 ---
@@ -301,16 +301,32 @@ python3 telegram_bot.py
 - [x] Multi-seat packages
 - [x] Telegram bot notifications
 - [x] systemd deployment
+- [x] Auto-sync scheduler
+- [ ] Ukrainian/English translations for Telegram bot
+- [ ] Bot `/sync` command (admin only)
+- [ ] Seats pre-fill when editing drafts
 - [ ] Excel/CSV export
 - [ ] Email notifications
 - [ ] Package templates
 - [ ] Client management UI
+- [ ] Docker setup
+- [ ] nginx + SSL for internet exposure
 
 ---
 
 ## 📝 Changelog
 
-### v1.4 (2026-05-22) - Current
+### v1.5 (2026-07-25) - Current
+- ✅ Auto-sync scheduler (every 30min, 8:00-20:00 Kyiv time)
+- ✅ Scheduler moved to standalone process to eliminate race conditions with Gunicorn workers
+- ✅ `install_services.sh` for idempotent systemd service management
+- ✅ Telegram notifications confirmed working end-to-end (status change → message)
+- ✅ Fixed dashboard 500 error for courier role (missing trend chart keys)
+- ✅ Fixed timezone display bugs across templates (proper UTC→local conversion)
+- ✅ Fixed planned_delivery_date crash (date object mishandled as datetime)
+- ✅ Updated deployment docs for scheduler service architecture
+
+### v1.4 (2026-05-22)
 - ✅ Major architecture refactor
 - ✅ Application factory pattern (create_app())
 - ✅ Split into blueprints (auth, packages, admin, settings, api)
@@ -321,7 +337,7 @@ python3 telegram_bot.py
 - ✅ Proper Python logging instead of print statements
 - ✅ One-command deployment script (deploy.sh)
 
-### v1.3 (2026-05-15) - Current
+### v1.3 (2026-05-15)
 - ✅ Telegram bot integration (@Orthotrack_bot)
 - ✅ Real-time notifications (at branch, delivered)
 - ✅ Bot commands: /packages, /atbranch, /settings
