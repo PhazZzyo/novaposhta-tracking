@@ -238,11 +238,19 @@ def dashboard():
 			Package.status_code != '2',
 			~Package.status_code.in_(['7', '8'])
 		).count()
-		at_branch = all_pkgs.filter(Package.status_code.in_(['7', '8'])).count()
+		at_branch_in = all_pkgs.filter(
+			Package.status_code.in_(['7', '8']),
+			Package.direction == 'incoming'
+		).count()
+		at_branch_out = all_pkgs.filter(
+			Package.status_code.in_(['7', '8']),
+			Package.direction == 'outgoing'
+		).count()
+		at_branch = at_branch_in + at_branch_out
 		completed = all_pkgs.filter(Package.is_delivered == True).count()
 		trends = _get_package_trends(api_ids, days=30)
 	else:
-		total = in_transit = at_branch = completed = 0
+		total = in_transit = at_branch = at_branch_in = at_branch_out = completed = 0
 		trends = {
 			'dates': [],
 			'in_transit': [],
@@ -257,6 +265,8 @@ def dashboard():
 		total_packages=total,
 		in_transit=in_transit,
 		at_branch=at_branch,
+		at_branch_in=at_branch_in,
+		at_branch_out=at_branch_out,
 		completed=completed,
 		trends=trends,
 		now=datetime.now(_get_user_timezone()))

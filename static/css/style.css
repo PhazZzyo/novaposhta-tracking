@@ -174,7 +174,7 @@ body[data-theme="light"] tr[data-delivered="true"] {
     padding: 1.75rem;
 }
 
-/* Stat Icons - Modern & Colorful */
+/* Stat Icons */
 .stat-icon {
     width: 64px;
     height: 64px;
@@ -220,6 +220,10 @@ body[data-theme="light"] tr[data-delivered="true"] {
     background: linear-gradient(135deg, rgba(13, 202, 240, .15) 0%, rgba(13, 202, 240, .05) 100%);
     color: #0dcaf0;
     box-shadow: 0 4px 12px rgba(13, 202, 240, .2);
+}
+
+.text-outgoing-blue {
+    color: var(--bs-blue) !important;
 }
 
 /* Stat Card Typography */
