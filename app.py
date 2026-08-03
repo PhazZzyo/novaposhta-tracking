@@ -232,7 +232,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 	if direction in ['incoming', 'both'] and api_key_obj.sender_identifier:
 		try:
 			incoming_docs, full_response = api.get_incoming_documents(api_key_obj.sender_identifier)
-			fetched, created = 0, 0
+			fetched, created, status_changed = 0, 0, 0
 
 			for result_group in incoming_docs:
 				for doc in result_group.get('result', []):
@@ -245,6 +245,9 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 						pkg = Package(api_key_id=api_key_obj.id, tracking_number=tn)
 						db.session.add(pkg)
 						created += 1
+
+					# Capture old status BEFORE overwriting
+					old_status = pkg.status_code
 
 					pkg.direction = 'incoming'
 					pkg.sender_city = doc.get('CitySenderDescription')
@@ -269,6 +272,34 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 					pkg.is_delivered = is_delivered(pkg.status_code)
 					pkg.raw_data = doc
 
+					# Notify if status actually changed (skip brand new packages)
+					if old_status is not None and old_status != pkg.status_code:
+						notify_package_status_change(pkg, old_status, pkg.status_code)
+						status_changed += 1
+
+			db.session.commit()
+			if fetched > 0:
+				summary = f'In: {fetched}📦 ({created}🆕)'
+				if status_changed > 0:
+					summary += f' | Changed: {status_changed}🔔'
+				results.append(summary)
+				log = SyncLog(
+					api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
+					sync_direction='incoming', packages_fetched=fetched,
+					packages_created=created, packages_updated=status_changed,
+					status='success', sync_summary=summary, api_response=full_response
+				)
+				db.session.add(log)
+				db.session.commit()
+		except Exception as e:
+			summary = f'In: ❌ {str(e)[:50]}'
+			results.append(summary)
+			log = SyncLog(
+				api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
+				sync_direction='incoming', status='error',
+				error_message=str(e), sync_summary=summary
+			)
+			db.session.add(log)
 			db.session.commit()
 
 			if fetched > 0:
