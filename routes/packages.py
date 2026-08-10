@@ -233,11 +233,21 @@ def dashboard():
 	if api_ids:
 		all_pkgs = Package.query.filter(Package.api_key_id.in_(api_ids))
 		total = all_pkgs.count()
-		in_transit = all_pkgs.filter(
+
+		in_transit_in = all_pkgs.filter(
 			Package.is_delivered == False,
 			Package.status_code != '2',
-			~Package.status_code.in_(['7', '8'])
+			~Package.status_code.in_(['7', '8']),
+			Package.direction == 'incoming'
 		).count()
+		in_transit_out = all_pkgs.filter(
+			Package.is_delivered == False,
+			Package.status_code != '2',
+			~Package.status_code.in_(['7', '8']),
+			Package.direction == 'outgoing'
+		).count()
+		in_transit = in_transit_in + in_transit_out
+
 		at_branch_in = all_pkgs.filter(
 			Package.status_code.in_(['7', '8']),
 			Package.direction == 'incoming'
@@ -250,7 +260,7 @@ def dashboard():
 		completed = all_pkgs.filter(Package.is_delivered == True).count()
 		trends = _get_package_trends(api_ids, days=30)
 	else:
-		total = in_transit = at_branch = at_branch_in = at_branch_out = completed = 0
+		total = in_transit = in_transit_in = in_transit_out = at_branch = at_branch_in = at_branch_out = completed = 0
 		trends = {
 			'dates': [],
 			'in_transit': [],
@@ -264,6 +274,8 @@ def dashboard():
 		api_keys=api_keys,
 		total_packages=total,
 		in_transit=in_transit,
+		in_transit_in=in_transit_in,
+		in_transit_out=in_transit_out,
 		at_branch=at_branch,
 		at_branch_in=at_branch_in,
 		at_branch_out=at_branch_out,

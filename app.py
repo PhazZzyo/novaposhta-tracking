@@ -227,6 +227,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 			)
 			db.session.add(log)
 			db.session.commit()
+			
 
 	# STEP 2: FETCH INCOMING PACKAGES
 	if direction in ['incoming', 'both'] and api_key_obj.sender_identifier:
@@ -301,29 +302,7 @@ def sync_packages(api_key_obj, days=7, sync_type='manual', user_id=None, directi
 			)
 			db.session.add(log)
 			db.session.commit()
-
-			if fetched > 0:
-				summary = f'In: {fetched}📦 ({created}🆕)'
-				results.append(summary)
-				log = SyncLog(
-					api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
-					sync_direction='incoming', packages_fetched=fetched,
-					packages_created=created, packages_updated=0,
-					status='success', sync_summary=summary, api_response=full_response
-				)
-				db.session.add(log)
-				db.session.commit()
-
-		except Exception as e:
-			summary = f'In: ❌ {str(e)[:50]}'
-			results.append(summary)
-			log = SyncLog(
-				api_key_id=api_key_obj.id, user_id=user_id, sync_type=sync_type,
-				sync_direction='incoming', status='error',
-				error_message=str(e), sync_summary=summary
-			)
-			db.session.add(log)
-			db.session.commit()
+			
 
 	# STEP 3: UPDATE STATUS FOR ACTIVE PACKAGES
 	try:
