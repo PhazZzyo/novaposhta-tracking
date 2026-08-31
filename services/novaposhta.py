@@ -145,7 +145,7 @@ class NovaPoshtaAPI:
 		if not tracking_numbers:
 			return [], {}
 		documents = [{'DocumentNumber': str(tn)} for tn in tracking_numbers[:100]]
-		return self._post('TrackingDocument', 'getStatusDocuments', {'Documents': documents})
+		return self._post('TrackingDocumentGeneral', 'getStatusDocuments', {'Documents': documents})
 
 	def get_counterparty_documents(self, counterparty_ref, date_from, limit=100):
 		return self._post('InternetDocument', 'getDocumentList', {

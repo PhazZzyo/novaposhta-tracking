@@ -16,5 +16,6 @@ _legacy.py (e.g. 'sender', 'recipient', 'package_created', 'save_as_draft').
 """
 from ._legacy import TRANSLATIONS
 from .bot import BOT_TRANSLATIONS, t_bot
+from .np_status import NP_STATUS_LABELS, get_status_label
 
-__all__ = ['TRANSLATIONS', 'BOT_TRANSLATIONS', 't_bot']
+__all__ = ['TRANSLATIONS', 'BOT_TRANSLATIONS', 't_bot', 'NP_STATUS_LABELS', 'get_status_label']
