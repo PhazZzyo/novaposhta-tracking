@@ -1,0 +1,45 @@
+# translations/auth.py
+"""Login, user management, admin translation strings"""
+
+AUTH_TRANSLATIONS = {
+	'en': {
+		'change_password': 'Change Password',
+		'users': 'Users',
+		'add_user': 'Add User',
+		'username': 'Username',
+		'full_name': 'Full Name',
+		'role': 'Role',
+		'password': 'Password',
+		'new_password': 'New Password',
+		'confirm_password': 'Confirm Password',
+		'current_password': 'Current Password',
+		'save_changes': 'Save Changes',
+		'create_user': 'Create User',
+		'last_login': 'Last Login',
+		'login': 'Login',
+		'remember_me': 'Remember me (30 days)',
+		'sign_in': 'Sign In',
+		'tracking_system': 'Package Tracking System',
+		'no_account': 'No account? Contact administrator.',
+	},
+	'uk': {
+		'change_password': 'Змінити пароль',
+		'users': 'Користувачі',
+		'add_user': 'Додати користувача',
+		'username': 'Логін',
+		'full_name': "Повне ім'я",
+		'role': 'Роль',
+		'password': 'Пароль',
+		'new_password': 'Новий пароль',
+		'confirm_password': 'Підтвердити',
+		'current_password': 'Поточний пароль',
+		'save_changes': 'Зберегти зміни',
+		'create_user': 'Створити',
+		'last_login': 'Останній вхід',
+		'login': 'Вхід',
+		'remember_me': "Запам'ятати (30 днів)",
+		'sign_in': 'Увійти',
+		'tracking_system': 'Система відстеження',
+		'no_account': 'Зверніться до адміна.',
+	}
+}
