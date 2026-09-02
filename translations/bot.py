@@ -33,7 +33,7 @@ BOT_TRANSLATIONS = {
 		# /packages
 		'no_packages_in_transit': "🚚 No packages in transit.\n\nUse /atbranch to check packages ready for pickup.",
 		'packages_in_transit_title': "🚚 <b>Packages In Transit</b>\n\n",
-		'package_line': "🚚 {status}\nTTN: <code>{ttn}</code>\nRecipient: {recipient}\n\n",
+		'package_line': "🚚 {status}\nTTN: <code>{ttn}</code>\nRecipient: {recipient}\nBranch: {branch}\nEst. delivery: {delivery_date}\n\n",
 		'btn_refresh': "🔄 Refresh",
 
 		# /atbranch
@@ -97,7 +97,7 @@ BOT_TRANSLATIONS = {
 
 		'no_packages_in_transit': "🚚 Немає посилок у дорозі.\n\nВикористайте /atbranch, щоб перевірити посилки, готові до отримання.",
 		'packages_in_transit_title': "🚚 <b>Посилки в дорозі</b>\n\n",
-		'package_line': "🚚 {status}\nТТН: <code>{ttn}</code>\nОтримувач: {recipient}\n\n",
+		'package_line': "🚚 {status}\nТТН: <code>{ttn}</code>\nОтримувач: {recipient}\nВідділення: {branch}\nОрієнтовна доставка: {delivery_date}\n\n",
 		'btn_refresh': "🔄 Оновити",
 
 		'no_packages_at_branch': "📍 Немає посилок у відділенні.\n\nВикористайте /packages, щоб перевірити посилки в дорозі.",

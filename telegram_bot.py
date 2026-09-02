@@ -190,12 +190,15 @@ async def packages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = t_bot('packages_in_transit_title', lang)
 
         for pkg in in_transit:
+            delivery_date = pkg.planned_delivery_date.strftime('%d.%m.%Y') if pkg.planned_delivery_date else '-'
             message += t_bot(
                 'package_line', lang,
                 status=pkg.status or 'В дорозі',
                 ttn=pkg.tracking_number,
-                recipient=pkg.recipient_name or '-'
-            )
+                recipient=pkg.recipient_name or '-',
+                branch=pkg.recipient_warehouse or '-',
+                delivery_date=delivery_date
+    )
 
     keyboard = [
         [InlineKeyboardButton(t_bot('btn_refresh', lang), callback_data='refresh_packages')],
