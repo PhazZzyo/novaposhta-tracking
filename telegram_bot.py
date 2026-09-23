@@ -276,6 +276,50 @@ async def at_branch(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
+# /track
+# ============================================================
+
+async def track(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Check status of any TTN, even ones not synced into this app's DB"""
+    reply = get_reply(update)
+    telegram_user_id = get_user_id(update)
+    lang = get_lang_by_telegram_id(telegram_user_id)
+
+    if not context.args:
+        usage = "Використання: /track <номер>" if lang == 'uk' else "Usage: /track <tracking_number>"
+        await reply(usage)
+        return
+
+    ttn = context.args[0].strip()
+
+    with app.app_context():
+        api_key = APIKey.query.filter_by(is_active=True).first()
+        if not api_key:
+            await reply(t_bot('no_api_keys', lang))
+            return
+
+        from services.novaposhta import NovaPoshtaAPI
+        api = NovaPoshtaAPI(api_key.api_key)
+        try:
+            result, _ = api.get_status_documents([ttn])
+            if not result:
+                not_found = f"ТТН {ttn} не знайдено." if lang == 'uk' else f"TTN {ttn} not found."
+                await reply(not_found)
+                return
+
+            doc = result[0]
+            message = (
+                f"📦 TTN: <code>{doc.get('Number')}</code>\n"
+                f"{'Статус' if lang == 'uk' else 'Status'}: {doc.get('Status')}\n"
+                f"🔗 https://novaposhta.ua/tracking/{ttn}"
+            )
+            await reply(message, parse_mode='HTML')
+        except Exception as e:
+            error_msg = f"Помилка: {e}" if lang == 'uk' else f"Error: {e}"
+            await reply(error_msg)
+
+
+# ============================================================
 # /help
 # ============================================================
 
@@ -405,6 +449,7 @@ async def set_commands(app):
         ('start', 'Start / Link account'),
         ('packages', '🚚 Packages in transit'),
         ('atbranch', '📍 Packages at branch'),
+        ('track', '🔍 Check tracking number'),
         ('settings', '⚙️ Settings'),
         ('help', '❓ Help'),
     ])
@@ -438,6 +483,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("packages", packages))
     application.add_handler(CommandHandler("atbranch", at_branch))
+    application.add_handler(CommandHandler("track", track))
     application.add_handler(CommandHandler("settings", settings))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))

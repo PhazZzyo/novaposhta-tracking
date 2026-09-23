@@ -35,6 +35,12 @@ PACKAGES_TRANSLATIONS = {
 		'shipping_cost': 'Shipping Cost',
 		'planned_delivery': 'Planned Delivery',
 		'remove_deleted_package': 'Remove deleted package',
+        'enter_tracking_number': 'Enter tracking number...',
+		'check_status': 'Check Status',
+		'full_route': 'Full Route',
+		'clear': 'Clear',
+		'loading': 'Loading',
+		'lookup_failed': 'Lookup failed',
 	},
 	'uk': {
 		'api_keys': 'API Ключі',
@@ -69,5 +75,11 @@ PACKAGES_TRANSLATIONS = {
 		'shipping_cost': 'Доставка',
 		'planned_delivery': 'Планова доставка',
 		'remove_deleted_package': 'Видалити посилку',
+        'enter_tracking_number': 'Введіть номер відстеження...',
+        'check_status': 'Перевірити статус',
+		'full_route': 'Повний маршрут',
+		'clear': 'Очистити',
+		'loading': 'Завантаження',
+		'lookup_failed': 'Помилка пошуку',
 	}
 }

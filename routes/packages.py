@@ -587,3 +587,36 @@ def delete_package(package_id):
 	db.session.commit()
 	flash(f'Package {ttn} deleted', 'success')
 	return redirect(url_for('packages.packages'))
+
+
+@packages_bp.route('/api/track/<ttn>')
+@login_required
+def track_ttn(ttn):
+	"""Look up current status for any TTN via NP API - works even if not in local DB"""
+	ttn = ttn.strip()
+	if not ttn.isdigit() or len(ttn) < 8:
+		return jsonify({'success': False, 'error': 'Invalid tracking number'}), 400
+
+	# Try to find an active API key to use for the lookup
+	api_key = APIKey.query.filter_by(is_active=True).first()
+	if not api_key:
+		return jsonify({'success': False, 'error': 'No active API key configured'}), 400
+
+	try:
+		api = NovaPoshtaAPI(api_key.api_key)
+		result, _ = api.get_status_documents([ttn])
+		if not result:
+			return jsonify({'success': False, 'error': 'Tracking number not found'})
+
+		doc = result[0]
+		return jsonify({
+			'success': True,
+			'ttn': doc.get('Number'),
+			'status': doc.get('Status'),
+			'status_code': doc.get('StatusCode'),
+			'recipient_city': doc.get('CityRecipient'),
+			'warehouse': doc.get('WarehouseRecipient'),
+			'scheduled_delivery': doc.get('ScheduledDeliveryDate'),
+		})
+	except Exception as e:
+		return jsonify({'success': False, 'error': str(e)}), 500

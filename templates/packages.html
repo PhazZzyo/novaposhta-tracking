@@ -1,6 +1,28 @@
 {% extends "base.html" %}
 {% block title %}{{ t('packages') }} - Nova Poshta{% endblock %}
 {% block content %}
+
+<!-- TTN Lookup -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <input type="text" id="ttnLookupInput" class="form-control" style="max-width: 280px;"
+                placeholder="{{ t('enter_tracking_number') }}">
+            <button class="btn btn-primary" onclick="checkTtnStatus()">
+                <i class="bi bi-search me-1"></i>{{ t('check_status') }}
+            </button>
+            <a id="ttnFullRouteLink" href="#" target="_blank" class="btn btn-outline-secondary d-none">
+                <i class="bi bi-box-arrow-up-right me-1"></i>{{ t('full_route') }}
+            </a>
+            <button class="btn btn-outline-secondary" onclick="clearTtnLookup()">
+                <i class="bi bi-x-lg me-1"></i>{{ t('clear') }}
+            </button>
+        </div>
+        <div id="ttnLookupResult" class="mt-3 d-none"></div>
+    </div>
+</div>
+
+<!-- Filter bar -->
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-box me-2"></i>{{ t('packages') }}
         {% if current_filter %}
@@ -30,6 +52,7 @@
     </div>
 </div>
 
+<!-- Packages List -->
 <div class="card">
     {% if packages %}
     {% if view_mode == 'table' %}
@@ -152,6 +175,10 @@
                             onclick="loadPackage({{ pkg.id }})">
                             <i class="bi bi-info-circle"></i>
                         </button>
+                        <a href="https://novaposhta.ua/tracking/{{ pkg.tracking_number }}" target="_blank"
+                            class="btn btn-sm btn-outline-secondary" title="{{ t('full_route') }}">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -293,6 +320,8 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Filter Modal -->
 <div class="modal fade" id="filterModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -343,6 +372,8 @@
         </div>
     </div>
 </div>
+
+<!-- Package Details Modal -->
 <div class="modal fade" id="pkgModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -518,6 +549,49 @@
             createBtn.addEventListener('click', resetCreateModal);
         }
     });
+
+    // TTN Lookup
+    async function checkTtnStatus() {
+        const ttn = document.getElementById('ttnLookupInput').value.trim();
+        if (!ttn) return;
+
+        const resultDiv = document.getElementById('ttnLookupResult');
+        const routeLink = document.getElementById('ttnFullRouteLink');
+
+        resultDiv.classList.remove('d-none');
+        resultDiv.innerHTML = '<div class="text-muted">{{ t("loading") }}...</div>';
+
+        routeLink.href = `https://novaposhta.ua/tracking/${ttn}`;
+        routeLink.classList.remove('d-none');
+
+        try {
+            const response = await fetch(`/api/track/${ttn}`);
+            const data = await response.json();
+
+            if (data.success) {
+                resultDiv.innerHTML = `
+				<div class="border rounded p-3">
+					<div class="fw-semibold mb-1">${data.status}</div>
+					<div class="text-muted small">
+						TTN: <code>${data.ttn}</code><br>
+						${data.warehouse ? 'Branch: ' + data.warehouse + '<br>' : ''}
+						${data.scheduled_delivery ? 'Est. delivery: ' + data.scheduled_delivery : ''}
+					</div>
+				</div>
+			`;
+            } else {
+                resultDiv.innerHTML = `<div class="text-danger">${data.error}</div>`;
+            }
+        } catch (e) {
+            resultDiv.innerHTML = `<div class="text-danger">{{ t("lookup_failed") }}</div>`;
+        }
+    }
+
+    function clearTtnLookup() {
+        document.getElementById('ttnLookupInput').value = '';
+        document.getElementById('ttnLookupResult').classList.add('d-none');
+        document.getElementById('ttnFullRouteLink').classList.add('d-none');
+    }
 
 </script>
 {% include 'partials/create_package_modal.html' %}
