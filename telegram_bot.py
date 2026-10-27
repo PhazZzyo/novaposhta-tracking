@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from telegram.request import HTTPXRequest
+from services.telegram_format import format_package
 
 # Configure logging
 logging.basicConfig(
@@ -188,17 +189,8 @@ async def packages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Build message
         message = t_bot('packages_in_transit_title', lang)
-
         for pkg in in_transit:
-            delivery_date = pkg.planned_delivery_date.strftime('%d.%m.%Y') if pkg.planned_delivery_date else '-'
-            message += t_bot(
-                'package_line', lang,
-                status=pkg.status or 'В дорозі',
-                ttn=pkg.tracking_number,
-                recipient=pkg.recipient_name or '-',
-                branch=pkg.recipient_warehouse or '-',
-                delivery_date=delivery_date
-    )
+            message += format_package(pkg, lang)
 
     keyboard = [
         [InlineKeyboardButton(t_bot('btn_refresh', lang), callback_data='refresh_packages')],
@@ -252,15 +244,10 @@ async def at_branch(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply(t_bot('no_packages_at_branch', lang))
             return
 
+        # Build message
         message = t_bot('packages_at_branch_title', lang)
-
         for pkg in at_branch_pkgs:
-            message += t_bot(
-                'branch_package_line', lang,
-                recipient=pkg.recipient_name or '-',
-                ttn=pkg.tracking_number,
-                branch=pkg.recipient_warehouse or '-'
-            )
+            message += format_package(pkg, lang)
 
     keyboard = [
         [InlineKeyboardButton(t_bot('btn_refresh', lang), callback_data='at_branch')],

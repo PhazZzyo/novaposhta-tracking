@@ -31,17 +31,19 @@ BOT_TRANSLATIONS = {
 		'no_api_keys': "📦 No API keys found.\n\nPlease add an API key in the web app first.",
 
 		# /packages
+		'lbl_ttn': 'TTN',
+		'lbl_recipient': 'Recipient',
+		'lbl_branch': 'Branch',
+		'lbl_delivery': 'Est. delivery',
+		'notify_header': "🔔 <b>Package Update</b>\n\n",
 		'no_packages_in_transit': "🚚 No packages in transit.\n\nUse /atbranch to check packages ready for pickup.",
-		'packages_in_transit_title': "🚚 <b>Packages In Transit</b>\n\n",
-		'package_line': "🚚 {status}\nTTN: <code>{ttn}</code>\nRecipient: {recipient}\nBranch: {branch}\nEst. delivery: {delivery_date}\n\n",
+		'packages_in_transit_title': "🚚 <b>Packages In Transit</b>\n\n",		
 		'btn_refresh': "🔄 Refresh",
-		'notify_package_update': "{emoji} <b>Package Update</b>\n\nTTN: <code>{ttn}</code>\nRecipient: {recipient}\nBranch: {branch}\nStatus: {status}\n{urgent}",
 		'notify_ready_pickup': "\n⚠️ <b>Ready for pickup!</b>",
 
 		# /atbranch
 		'no_packages_at_branch': "📍 No packages at branch.\n\nUse /packages to check packages in transit.",
 		'packages_at_branch_title': "📍 <b>Packages At Branch</b>\n<i>Ready for pickup!</i>\n\n",
-		'branch_package_line': "📍 <b>{recipient}</b>\nTTN: <code>{ttn}</code>\nBranch: {branch}\n\n",
 
 		# /help
 		'help_text': (
@@ -103,17 +105,19 @@ BOT_TRANSLATIONS = {
 		'no_api_keys': "📦 API ключі не знайдено.\n\nБудь ласка, додайте API ключ у вебзастосунку.",
 
 		# /packages
+		'lbl_ttn': 'ТТН',
+		'lbl_recipient': 'Отримувач',
+		'lbl_branch': 'Відділення',
+		'lbl_delivery': 'Орієнтовна доставка',
+		'notify_header': "🔔 <b>Оновлення посилки</b>\n\n",
 		'no_packages_in_transit': "🚚 Немає посилок у дорозі.\n\nВикористайте /atbranch, щоб перевірити посилки, готові до отримання.",
 		'packages_in_transit_title': "🚚 <b>Посилки в дорозі</b>\n\n",
-		'package_line': "🚚 {status}\nТТН: <code>{ttn}</code>\nОтримувач: {recipient}\nВідділення: {branch}\nОрієнтовна доставка: {delivery_date}\n\n",
 		'btn_refresh': "🔄 Оновити",
-		'notify_package_update': "{emoji} <b>Оновлення посилки</b>\n\nТТН: <code>{ttn}</code>\nОтримувач: {recipient}\nВідділення: {branch}\nСтатус: {status}\n{urgent}",
 		'notify_ready_pickup': "\n⚠️ <b>Готово до отримання!</b>",
 
 		# /atbranch
 		'no_packages_at_branch': "📍 Немає посилок у відділенні.\n\nВикористайте /packages, щоб перевірити посилки в дорозі.",
 		'packages_at_branch_title': "📍 <b>Посилки у відділенні</b>\n<i>Готові до отримання!</i>\n\n",
-		'branch_package_line': "📍 <b>{recipient}</b>\nТТН: <code>{ttn}</code>\nВідділення: {branch}\n\n",
 
 		# /help
 		'help_text': (
