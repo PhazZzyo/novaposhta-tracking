@@ -4,6 +4,7 @@ import requests
 from models import User, APIKey, UserAPITracking
 import logging
 logger = logging.getLogger(__name__)
+from translations import t_bot
 
 
 def send_telegram_notification(telegram_user_id: int, message: str):
@@ -66,25 +67,34 @@ def notify_package_status_change(package, old_status_code, new_status_code):
         return
 
     # Build message
+    # Pick emoji and whether to show the pickup warning
     if new_status_code in ['7', '8']:
         emoji = '📍'
-        urgent = '\n⚠️ <b>Ready for pickup!</b>'
+        is_ready = True
     elif new_status_code == '9':
         emoji = '✅'
-        urgent = ''
+        is_ready = False
     else:
         emoji = '🚚'
-        urgent = ''
+        is_ready = False
 
-    message = (
-        f"{emoji} <b>Package Update</b>\n\n"
-        f"TTN: <code>{package.tracking_number}</code>\n"
-        f"Recipient: {package.recipient_name or '-'}\n"
-        f"Status: {package.status}\n"
-        f"{urgent}"
-    )
-
-    logger.debug(f"Sending message: {message}")
+	# Build and send a message per user, in their own language
+    for user in users_to_notify:
+        lang = user.language or 'uk'
+        message = t_bot(
+			'notify_package_update', lang,
+			emoji=emoji,
+			ttn=package.tracking_number,
+			recipient=package.recipient_name or '-',
+			branch=package.recipient_warehouse or '-',
+			status=package.status or '-',
+			urgent=t_bot('notify_ready_pickup', lang) if is_ready else ''
+		)
+    result = send_telegram_notification(user.telegram_user_id, message)
+    if result:
+        logger.debug(f"Notified {user.username} (TG: {user.telegram_user_id})")
+    else:
+        logger.error(f"Failed to notify {user.username}")
 
     # Send to all relevant users
     for user in users_to_notify:

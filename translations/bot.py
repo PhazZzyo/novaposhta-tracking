@@ -35,6 +35,8 @@ BOT_TRANSLATIONS = {
 		'packages_in_transit_title': "🚚 <b>Packages In Transit</b>\n\n",
 		'package_line': "🚚 {status}\nTTN: <code>{ttn}</code>\nRecipient: {recipient}\nBranch: {branch}\nEst. delivery: {delivery_date}\n\n",
 		'btn_refresh': "🔄 Refresh",
+		'notify_package_update': "{emoji} <b>Package Update</b>\n\nTTN: <code>{ttn}</code>\nRecipient: {recipient}\nBranch: {branch}\nStatus: {status}\n{urgent}",
+		'notify_ready_pickup': "\n⚠️ <b>Ready for pickup!</b>",
 
 		# /atbranch
 		'no_packages_at_branch': "📍 No packages at branch.\n\nUse /packages to check packages in transit.",
@@ -73,13 +75,16 @@ BOT_TRANSLATIONS = {
 		'sync_line_skipped': "⏳ {label}: {message}",
 	},
 	'uk': {
+		# /start - already linked
 		'welcome_back': "👋 З поверненням, {username}!\n\nОберіть опцію нижче:",
 
+		# Menu buttons (also used to match handle_menu text)
 		'btn_in_transit': "🚚 В дорозі",
 		'btn_at_branch': "📍 У відділенні",
 		'btn_settings': "⚙️ Налаштування",
 		'btn_help': "❓ Допомога",
 
+		# /start - new user linking
 		'start_hello': (
 			"👋 Вітаю, {username}! Ласкаво просимо до <b>Orthotrack Bot</b>!\n\n"
 			"Я повідомлятиму вас, коли ваші посилки:\n"
@@ -93,18 +98,24 @@ BOT_TRANSLATIONS = {
 			"<i>Немає акаунту? Зверніться до адміністратора.</i>"
 		),
 
+		# Common errors
 		'not_linked': "❌ Ваш акаунт не прив'язаний.\n\nВикористайте /start, щоб прив'язати акаунт.",
 		'no_api_keys': "📦 API ключі не знайдено.\n\nБудь ласка, додайте API ключ у вебзастосунку.",
 
+		# /packages
 		'no_packages_in_transit': "🚚 Немає посилок у дорозі.\n\nВикористайте /atbranch, щоб перевірити посилки, готові до отримання.",
 		'packages_in_transit_title': "🚚 <b>Посилки в дорозі</b>\n\n",
 		'package_line': "🚚 {status}\nТТН: <code>{ttn}</code>\nОтримувач: {recipient}\nВідділення: {branch}\nОрієнтовна доставка: {delivery_date}\n\n",
 		'btn_refresh': "🔄 Оновити",
+		'notify_package_update': "{emoji} <b>Оновлення посилки</b>\n\nТТН: <code>{ttn}</code>\nОтримувач: {recipient}\nВідділення: {branch}\nСтатус: {status}\n{urgent}",
+		'notify_ready_pickup': "\n⚠️ <b>Готово до отримання!</b>",
 
+		# /atbranch
 		'no_packages_at_branch': "📍 Немає посилок у відділенні.\n\nВикористайте /packages, щоб перевірити посилки в дорозі.",
 		'packages_at_branch_title': "📍 <b>Посилки у відділенні</b>\n<i>Готові до отримання!</i>\n\n",
 		'branch_package_line': "📍 <b>{recipient}</b>\nТТН: <code>{ttn}</code>\nВідділення: {branch}\n\n",
 
+		# /help
 		'help_text': (
 			"🤖 <b>Orthotrack Bot - Довідка</b>\n\n"
 			"<b>Команди:</b>\n\n"
@@ -120,12 +131,14 @@ BOT_TRANSLATIONS = {
 			"• Посилку буде отримано ✅"
 		),
 
+		# /settings
 		'settings_title': "⚙️ <b>Налаштування</b>\n\nНалаштуйте параметри бота:",
 		'notifications_on': "🔔 Сповіщення: УВІМК",
 		'notifications_off': "🔕 Сповіщення: ВИМК",
 		'btn_unlink': "🔗 Відв'язати акаунт",
 		'unlinked': "✅ Акаунт відв'язано.\n\nВикористайте /start, щоб прив'язати знову.",
 
+		# /sync (admin only) - reserved for future implementation
 		'sync_admin_only': "❌ Тільки адміністратори можуть запускати синхронізацію.",
 		'sync_running': "🔄 Синхронізація посилок...",
 		'sync_results_title': "📊 <b>Результати синхронізації:</b>\n\n",
